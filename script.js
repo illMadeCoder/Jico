@@ -1,41 +1,27 @@
-function bunny()
+//function entity(_ID,_position,_sprite,_update,_onCollision,_hitbox,_tags,_enabled,_properties,_scale)
+function bunny1()
 {
-  var update = function()
-  {
-    this.sprite.x += Math.cos(this.sprite.rotation+-(Math.PI/2)) * this.properties.speed;
-    this.sprite.y += Math.sin(this.sprite.rotation+-(Math.PI/2)) * this.properties.speed;
-    if (Math.floor(Math.random()*10) <= 1) this.sprite.rotation += .1;
-    if (Math.floor(Math.random()*10) >= 8) this.sprite.rotation -= .1;
-  }
-  return new entity("bunny",[],"bunny.png",new position(Math.floor(Math.random()*800),Math.floor(Math.random()*800),Math.random()*100),Math.floor(Math.random()*5)+1,true,{speed:Math.floor(Math.random()*5)+1},update,new hitbox(), function(){})
-}
+  return new Entity("bunny",new Position(100,300,0), function(){
+    if (this.position.x > 600) this.properties.sign = -1;
+    if (this.position.x < 100) this.properties.sign = 1;
+    this.position.x += Game.deltaTime*240*this.properties.sign;
 
-function player()
+     if (btn('u')) this.position.y += 1;}, [new SpriteRenderer("bunny.png",4)], [], {sign : 1});
+}
+function bunny2()
 {
-  var update = function()
-  {
-    if (btn('z')) this.properties.speed = 4;
-    else this.properties.speed = 1;
-    this.sprite.x += Math.cos(this.sprite.rotation+-(Math.PI/2)) * this.properties.speed;
-    this.sprite.y += Math.sin(this.sprite.rotation+-(Math.PI/2)) * this.properties.speed;
-    if (btn('r')) this.sprite.rotation += .1;
-    if (btn('l')) this.sprite.rotation -= .1;
-    if (globalFrameCounter > 100)
-    {
-      this.delete();
-    }
-  }
-  return new entity("player",[],"player.png",new position(400,300,0),4,true,{speed:1},update,new hitbox(), function(){})
-}
+  return new Entity("bunny",new Position(100,100,0), function(){
+    if (this.position.x > 600) this.properties.sign = -1;
+    if (this.position.x < 100) this.properties.sign = 1;
+    this.position.x += 2*this.properties.sign;
 
+     if (btn('u')) this.position.y += 1;}, [new SpriteRenderer("bunny.png",4)], [], {sign : 1});
+}
+var bunny1 = bunny1()
+var bunny2 = bunny2()
 function game_init()
 {
-  player();
-  /*for (i = 0; i < 100; i++)
-    bunny();
-  */
 }
 function game_update()
 {
-
 }
