@@ -92,6 +92,7 @@ function GameEngine()
   document.body.appendChild(this.renderer.view);
 
   //Methods
+  //private
   this.updateEntityPool = function()
   {
     updateFunc = function(_entity)
@@ -122,6 +123,11 @@ function GameEngine()
     this.frameCounter += 1;
     this.lastTime = Date.now();
   }.bind(this)
+  //public
+  this.setCanvasColor = function(_color)
+  {
+    this.renderer.backgroundColor = _color;
+  }.bind(this)
 }
 var Game = new GameEngine();
 //END GAME ENGINE
@@ -130,7 +136,7 @@ var Game = new GameEngine();
 //
 
 //BEGIN ENTITY COMPONENT SYSTEM
-function Entity(_ID,_position,_update,_components,_tag,_properties)
+function Entity(_ID,_position,_update,_components,_properties,_tag)
 {
   //Closure
   var entity = this;
@@ -171,6 +177,8 @@ function Entity(_ID,_position,_update,_components,_tag,_properties)
     //Asserts
     if (component.component == undefined)
       throw new Error("Bad Add Component", component, "to entity,", entity);
+    if (component.constructor == "Position")
+      throw new Error("Bad Add Component, cannot add a position component", entity)
     component.component.entity = entity;
     entity.components.push(component);
   }
