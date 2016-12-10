@@ -103,7 +103,9 @@ function GameEngine()
       _entity.update();
       let sprites = _entity.getComponents(SpriteRenderer);
       for (i = 0; i < sprites.length; i++)
-        sprites[i].updateSprite()
+      {
+        sprites[i].updateSprite();
+      }
     }
     this.entityLinkedList.map(updateFunc);
   }
@@ -188,19 +190,22 @@ function Entity(_ID,_position,_update,_components,_properties,_tag)
       throw new Error("Bad constructor type in getComponent")
     for (i = 0; i < entity.components.length; i++)
     {
-      if (entity.components[i].constructor == constructorType);
+      if (entity.components[i].constructor == constructorType)
         return entity.components[i];
     }
+    return null
   }
   this.getComponents = function(constructorType)
   {
+
     if (typeof constructorType != "function")
       throw new Error("Bad constructor type in getComponents")
     var ret = []
     for (i = 0; i < entity.components.length; i++)
     {
-      if (entity.components[i].constructor == constructorType);
-        ret.push(entity.components[i]);
+
+      if (entity.components[i].constructor === constructorType)
+          ret.push(entity.components[i]);
     }
     return ret;
   }
@@ -252,22 +257,25 @@ function Component()
 {
   this.entity = null;
 }
-function SpriteRenderer(_spriteFileName,_scale) //Implements Component
+function SpriteRenderer(_spriteFileName,_scale,_x_offset,_y_offset) //Implements Component
 {
   //Asserts
   if (typeof _spriteFileName != "string")
     throw new Error("Bad spriteFileName in SpriteRenderer", _spriteFileName);
 
   if (typeof _scale != "number") _scale = 1;
+  if (typeof _x_offset != "number") _x_offset = 0;
+  if (typeof _y_offset != "number") _y_offset = 0;
   this.component = new Component();
   this.sprite = new PIXI.Sprite(PIXI.Texture.fromImage("Images/" + _spriteFileName));
   this.sprite.scale.x = _scale;
   this.sprite.scale.y = _scale;
-
+  this.x_offset = _x_offset;
+  this.y_offset = _y_offset;
   this.updateSprite = function()
   {
-    this.sprite.position.x = this.component.entity.position.x;
-    this.sprite.position.y = this.component.entity.position.y;
+    this.sprite.position.x = this.component.entity.position.x + this.x_offset;
+    this.sprite.position.y = this.component.entity.position.y + this.y_offset;
   }
   this.setScaleX = function(_scale)
   {
@@ -339,7 +347,7 @@ Get whether a given key.keyCode is down, where
   if (i == "up" || i == "u") i = 4;
   if (i == "down" || i == "d") i = 5;
   if (i >= 0 && i < 6) return btn_array[i];
-  else console.log("BAD btn() CALL");
+  else throw new Error("Bad btn input", i);
 }
 document.addEventListener("keydown",function(key)
   {

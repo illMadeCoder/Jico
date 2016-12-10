@@ -1,0 +1,4 @@
+function DoublyLinkedListTester(_linkedList)
+{
+  
+}
