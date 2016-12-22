@@ -90,7 +90,9 @@ function GameEngine()
   this.lastTime = Date.now();
   this.frameCounter = 0; //total frames into game
   document.body.appendChild(this.renderer.view);
-
+  this.graphics = new PIXI.Graphics();
+  this.texts = {};
+  this.stage.addChild(this.graphics);
   //Methods
   //private
   this.updateEntityPool = function()
@@ -116,7 +118,7 @@ function GameEngine()
   this.gameLoop = function()
   {
     requestAnimationFrame(this.gameLoop);
-    this.deltaTime = (Date.now() - this.lastTime)/1000;
+    this.deltaTime = (Date.now() - this.lastTime);
     this.totalTime += this.deltaTime;
     //console.log((this.frameCounter/(this.totalTime%60)));
     game_update();
@@ -124,18 +126,11 @@ function GameEngine()
     this.animate();
     this.frameCounter += 1;
     this.lastTime = Date.now();
-  }.bind(this)
-  //public
-  this.setCanvasColor = function(_color)
-  {
-    this.renderer.backgroundColor = _color;
+    this.graphics.clear()
   }.bind(this)
 }
 var Game = new GameEngine();
 //END GAME ENGINE
-//Time Singleton
-
-//
 
 //BEGIN ENTITY COMPONENT SYSTEM
 function Entity(_ID,_position,_update,_components,_properties,_tag)
@@ -272,6 +267,7 @@ function SpriteRenderer(_spriteFileName,_scale,_x_offset,_y_offset) //Implements
   this.sprite.scale.y = _scale;
   this.x_offset = _x_offset;
   this.y_offset = _y_offset;
+  //Function which positions pixi sprite type equal to the objects position plus the relative offset
   this.updateSprite = function()
   {
     this.sprite.position.x = this.component.entity.position.x + this.x_offset;
@@ -371,3 +367,109 @@ document.addEventListener("keyup",function(key)
 );
 
 //END INPUT
+//BEGIN TIME
+function deltaTime()
+{
+  //Get Time Between The Previous Frame and Current Frame in Seconds
+  return Game.deltaTime/1000;
+}
+function totalTime()
+{
+  //Get Total Time Over Game Engine's LifeTime
+  return Game.totalTime/1000;
+}
+//END TIME
+//BEGIN GRAPHICS
+//Enumorate Color Codes
+//Pico-8 Color Palette
+Color = {};
+Color[0] = Color.black = 0x000000;
+Color[1] = Color.dark_blue = 0x1D2B53;
+Color[2] = Color.dark_purple = 0x7E2553;
+Color[3] = Color.dark_green = 0x008751;
+Color[4] = Color.brown = 0xAB5236;
+Color[5] = Color.dark_gray = 0x5F574F;
+Color[6] = Color.light_gray = 0xC2C3C7;
+Color[7] = Color.white = 0xFFF1E8;
+Color[8] = Color.red = 0xFF004D;
+Color[9] = Color.orange= 0xFFA300;
+Color[10] = Color.yellow = 0xFFEC27;
+Color[11] = Color.green = 0x00E436;
+Color[12] = Color.blue = 0x29ADFF;
+Color[13] = Color.indigo = 0x83769C;
+Color[14] = Color.pink = 0xFF77A8;
+Color[15] = Color.peach = 0xFFCCAA;
+Color.backgroundColor = Color.black;
+graphicsBuffer = {};
+
+function canvasColorSet(_color)
+{
+  //Set color of html canvas which holds game
+  if (typeof _color === "number")
+  {
+    backgroundColor = _color;
+    Game.renderer.backgroundColor = _color;
+  }
+  else
+    throw new Error("Bad canvasColorSet arg _color: ", _color);
+}
+function canvasColorGet()
+{
+  //Get color of html canvas which holds game in its Color enum
+  for (i = 0; i < 15; i++)
+  {
+    if (Color[i] == Color.backgroundColor) return i;
+  }
+}
+function rect(x,y,width,height,color)
+{
+  Game.graphics.lineStyle(2,color);
+  Game.graphics.drawRect(x,y,width,height);
+}
+function rectFill(x,y,width,height,color)
+{
+  Game.graphics.lineStyle(0);
+  Game.graphics.beginFill(color);
+  Game.graphics.drawRect(x,y,width,height);
+  Game.graphics.endFill();
+}
+function circ(x,y,r,color)
+{
+  Game.graphics.lineStyle(2, color);
+  Game.graphics.drawCircle(x,y,r);
+}
+function circFill(x,y,r,color)
+{
+  Game.graphics.lineStyle(0);
+  Game.graphics.beginFill(color);
+  Game.graphics.drawCircle(x,y,r);
+  Game.graphics.endFill();
+}
+function line(x0,y0,x1,y1,color)
+{
+  Game.graphics.lineStyle(2,color);
+  Game.graphics.moveTo(x0,y0);
+  Game.graphics.lineTo(x0+x1,y0+y1);
+}
+function camera(x,y)
+{
+  Game.stage.position.x = x;
+  Game.stage.position.y = y;
+}
+function pset(x,y,color)
+{
+  Game.graphics.lineStyle(2,color);
+  Game.graphics.moveTo(x,y);
+  Game.graphics.lineTo(x+1,y+1);
+}
+function print(str,x,y,color)
+{
+  //need to maintain parent text which is deleted each frame
+  //or make text an entity component which is probably better
+  //because it's necessary to do complex text stuff.
+  var text = new PIXI.Text(str,{fontFamily : "Impact",fill : color});
+  text.x = x;
+  text.y = y;
+  Game.stage.addChild(text);
+}
+//END GRAPHICS
