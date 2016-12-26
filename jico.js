@@ -1,3 +1,8 @@
+//jico.js A Web Based Game Engine
+//jico depends on Pixi.js, and Howler.js to operate.
+//By Jesse Bergerstock
+//November 2016
+
 //Enumorate Color Codes
 //Pico-8 Color Palette
 Color = {};
@@ -10,37 +15,64 @@ Color[5] = Color.dark_gray = 0x5F574F;
 Color[6] = Color.light_gray = 0xC2C3C7;
 Color[7] = Color.white = 0xFFF1E8;
 Color[8] = Color.red = 0xFF004D;
-Color[9] = Color.orange= 0xFFA300;
+Color[9] = Color.orange = 0xFFA300;
 Color[10] = Color.yellow = 0xFFEC27;
 Color[11] = Color.green = 0x00E436;
 Color[12] = Color.blue = 0x29ADFF;
 Color[13] = Color.indigo = 0x83769C;
 Color[14] = Color.pink = 0xFF77A8;
 Color[15] = Color.peach = 0xFFCCAA;
-Color.backgroundColor = Color.black;
 
-//BEGIN DATA STRUCTURES
+//Data Structures
 function DoublyLinkedList() {
+  /*
+  A doubly linked list is necessary to achieve constant time
+  inseration and removal of entities which exist on the
+  game engine's entity list. This algorithmic effeciency
+  will allow for a massive quantity of entities to be removed
+  from the game without having to traverse the typical array
+  with each iteration.
+
+  This doubly linked list will hinder node control to who ever inserts
+  the value on the list. This will allow for constant time removal by
+  directly handing the node to be removed to the removal method instead of
+  a value that will have to be located requiring n time traversal.
+  */
+  //Member Variables
   this.head = null;
   this.tail = null;
+  this.count = 0;
+  //Member Functions
   this.push = function(_data) {
+    //Constant time insertion method, inserts at the end of the list.
+    //Returns a node to be used for deletion.
+    //Asserts
+    if (_data === undefined) {
+      throw new Error("Object Type DoublyLinkedList's function push given no arg _data", _data);
+    }
+    //Implementation
     var node = new Node(_data);
-    if (this.head == null) {
+    if (this.count == 0) {
+      //List is empty
       this.head = node;
       this.tail = node;
     }
-    else
-    {
+    else {
+      //List is populated, Insert at end
       this.tail.next = node;
       node.prev = this.tail;
       this.tail = node;
     }
+    //Element count in list is increased by one
+    this.count++;
     return node;
   }
   this.remove = function(node) {
+    //Constant time removal method, requires the node in question to be removed instead of a value or index.
     //Asserts
     if (node.constructor != Node)
       throw new Error("Bad node in DoublyLinkedList remove", node);
+    //Implementation
     if (node == this.head && node == this.tail) {
       this.head = null;
       this.tail = null;
@@ -51,16 +83,23 @@ function DoublyLinkedList() {
     else if (node == this.tail) {
       this.tail = node.prev;
     }
-    else
-    {
+    else {
       node.prev.next = node.next;
       node.next.prev = node.prev;
     }
+    //Give GC a break
     node.next = null;
     node.prev = null;
     node.data = null;
+    this.count--;
   }
   this.contains = function(_node) {
+    //Given a node, check to see if it exists in this linked list.
+    //Return Bool
+    //Asserts
+    if (_node === undefined) {
+      throw new Error("Object Type DoublyLinkedList's function push given no arg _node", _node);
+    }
     let node = this.head;
     while (node != null) {
       if (node == _node) return true;
@@ -69,6 +108,7 @@ function DoublyLinkedList() {
     return false;
   }
   this.map = function(funct) {
+    //Given a function, apply that function to every value in list.
     //Asserts
     if (typeof funct != "function")
       throw new Error("Cannot map non function in DoublyLinkedList map");
@@ -79,6 +119,7 @@ function DoublyLinkedList() {
     }
   }
   function Node(_data) {
+    //A node is the container that encapsulates values on the lsit.
     this.data = _data;
     this.prev = null;
     this.next = null;
@@ -87,20 +128,34 @@ function DoublyLinkedList() {
 //END DATA STRUCTURES
 
 //BEGIN GAME ENGINE
-function GameEngine() {
+var Game = (function () {
+  /*
+  The singleton object referenced by identifier Game contains
+  properties that compose the minimal variables and logic to
+  run the jico.js game engine.
+
+  Game is responsible for handling Time, the game loop,
+  the rendering stage and canvas, primative graphics,
+  and the game's entity list.
+  */
+  //Implementation
   //Properties
-  this.renderer = PIXI.autoDetectRenderer(800, 600,{backgroundColor : 0x1099bb}); //Canvas Renderer
+  //Rendering
+  this.backgroundColor = Color.black; //Default canvas color
+  this.renderer = PIXI.autoDetectRenderer(800, 600,{backgroundColor : this.backgroundColor}); //Canvas Renderer
   this.stage = new PIXI.Container(); //Stage for canvas
-  this.entityLinkedList = new DoublyLinkedList(); //Container for game entities.
-  this.deltaTime = 0;
-  this.totalTime = 0;
-  this.lastTime = Date.now();
-  this.frameCounter = 0; //total frames into game
   document.body.appendChild(this.renderer.view);
   this.graphics = new PIXI.Graphics();
   this.stage.addChild(this.graphics);
-  //Methods
-  //private
+  //Entity List
+  this.entityLinkedList = new DoublyLinkedList(); //Container for game entities.
+  //Time
+  this.Time = {};
+  this.Time.deltaTime = 0;
+  this.Time.totalTime = 0;
+  this.Time.lastTime = Date.now();
+  this.frameCounter = 0;
+  //Private Methods
   this.updateEntityPool = function() {
     let updateFunc = function(_entity) {
       //Asserts
@@ -110,23 +165,22 @@ function GameEngine() {
     }
     this.entityLinkedList.map(updateFunc);
   }
-  this.animate = function() {
-    this.renderer.render(this.stage);
-  }
   this.gameLoop = function() {
-    this.lastTime = Date.now();
-    //console.log((this.frameCounter/(this.totalTime%60)));
-    game_update();
+    this.Time.lastTime = Date.now();
+    //Update Functions
+    game_update(); //Call Scripting Environment's planned game_update function.
     this.updateEntityPool();
-    this.animate();
+    //Rendering Functions
+    this.renderer.render(this.stage);
+    //Evaluate Time After Frame
     this.frameCounter += 1;
-    requestAnimationFrame(this.gameLoop);
-    this.deltaTime = (Date.now() - this.lastTime);
-    this.totalTime += this.deltaTime;
+    this.Time.deltaTime = (Date.now() - this.Time.lastTime);
+    this.Time.totalTime += this.Time.deltaTime;
     this.graphics.clear()
+    requestAnimationFrame(this.gameLoop);
   }.bind(this)
-}
-var Game = new GameEngine();
+  return this;
+})();
 //END GAME ENGINE
 
 //BEGIN ENTITY COMPONENT SYSTEM
@@ -157,7 +211,7 @@ function Entity(_ID,_position,_components,_properties,_tag) {
   this.position = _position;
   this.tag = _tag;
   this.properties = _properties;
-  this.birthTime = Game.totalTime;
+  this.birthTime = Game.Time.totalTime;
 
   //Component Methods
   //Method to Add components
@@ -216,13 +270,8 @@ function Entity(_ID,_position,_components,_properties,_tag) {
   this.unStage = function() {
     if (this.isStaged(this.node) == false)
       console.error("Entity already unstaged", entity);
-    else
-    {
-      Game.entityLinkedList.remove(this.node);
-      let sprites = entity.getComponents(SpriteRenderer);
-      for (i = 0; i < sprites.length; i++)
-        sprites[i].destroy()
-    }
+
+    Game.entityLinkedList.remove(this.node);
   }
   this.isStaged = function() {
     Game.entityLinkedList.contains(this.node);
@@ -235,23 +284,37 @@ function Entity(_ID,_position,_components,_properties,_tag) {
       if (entity.tag[i] == _tag) return true;
     return false;
   }
+  this.destroy = function() {
+    for (i = 0; i<entity.components.length; i++) {
+      entity.components[i].component.delete();
+    }
+    this.unStage();
+  }
   //Stage this entity into gamespace
   this.stage();
+  return this;
 }
 //Abstract Type Component
-function Component(_apply) {
+function Component(_apply, _destroy) {
   //Defaults
-  if (this.apply === undefined) {
-    this.apply = function() {};
+  if (_apply === undefined) {
+    _apply = function() {};
+  }
+  if (_destroy === undefined) {
+    _destroy = function () {};
   }
   //Asserts
   if (typeof _apply !== "function") {
     throw new Error("Bad component apply function", _apply);
   }
+  if (typeof _destroy !== "function") {
+    throw new Error("Bad component destroy function", _destroy);
+  }
   //Implementation
   this.entity = null;
   this.position = null;
   this.apply = _apply;
+  this.destroy = _destroy;
 }
 function Script(_initFunc, _updateFunc) {
   //Defaults
@@ -279,6 +342,10 @@ function Script(_initFunc, _updateFunc) {
         this.init();
       }
       this.update();
+    }.bind(this),
+    function () {
+      this.init = null;
+      this.update = null;
     }.bind(this)
   );
 }
@@ -379,6 +446,13 @@ function GameText(_str, _color, _x_offset, _y_offset, _font) {
   )
 }
 function SpriteRenderer(_spriteFileName,_scale,_x_offset,_y_offset) {
+  /*
+  The SpriteRenderer is defined as an entity component which encapsulates
+  the PIXI.js library to provide behaviour associated with graphical sprites
+  such as: sprite scale control, sprite display, and the sprite's local position.
+
+
+  */
   //Asserts
   if (typeof _spriteFileName != "string")
     throw new Error("Bad spriteFileName in SpriteRenderer", _spriteFileName);
@@ -414,14 +488,31 @@ function SpriteRenderer(_spriteFileName,_scale,_x_offset,_y_offset) {
   this.getScaleY = function() {
     return this.sprite.scale.y;
   }
-  this.destroy = function() {
-    this.sprite.destroy();
-  }
   Game.stage.addChild(this.sprite); //Setup entity to be rendered
-  this.component = new Component(function() {this.updateSprite()}.bind(this));
+  this.component = new Component(
+    function() {
+      this.updateSprite()
+    }.bind(this),
+    function() {
+      this.sprite.destroy();
+    }.bind(this)
+    );
 }
 
 function AudioPlayer(_audioFileName) {
+  /*
+  The AudioPlayer type is defined as an entity component which
+  encapsulates the howler.js library to provides common behaviour
+  associated with audio such as: play, pause, stop, volume control,
+  loop control, and mute control.
+
+  The AudioPlayer requires a valid filename for an audio file located in the Audio folder.
+  */
+  //Asserts
+  if (typeof _audioFileName !== "number") {
+    throw new Error("Bad arg _audioFileName in construction of AudioPlayer component", _audioFileName);
+  }
+  //Implementation
   this.sound = new Howl({ src : ["Music/" + _audioFileName]});
   this.playing = false;
   this.loop = false;
@@ -469,22 +560,45 @@ function AudioPlayer(_audioFileName) {
   this.isPlaying = function() {
     return this.playing;
   }
-  this.component = new Component(function() {});
+  this.component = new Component(function() {},
+  function() {
+    this.stop();
+  });
 }
 
 function Position(_x,_y,_r) {
-  if (typeof _x != "number") _x = 0;
-  if (typeof _y != "number") _y = 0;
-  if (typeof _r != "number") _r = 0;
+  /*
+  The Position type is defined as an entity component
+  which provides a container for the global position of
+  an entity on canvas space. All other position based components
+  will utilize an entity's Position component to have a frame of reference
+
+  The Position component is special in that there can only exist a single Position
+  object per entity, and an entity must maintain one Position object.
+  */
+  //Defaults
+  if (_x === undefined) _x = 0;
+  if (_y === undefined) _y = 0;
+  if (_r === undefined) _r = 0;
+  //Asserts
+  if (typeof _x !== "number") {
+    throw new Error("Bad arguement _x in Position", _x);
+  }
+  if (typeof _y !== "number") {
+    throw new Error("Bad arguement _y in Position", _y);
+  }
+  if (typeof _r !== "number") {
+    throw new Error("Bad arguement _r in Position", _r);
+  }
+  //Implementation
   this.x = _x;
   this.y = _y;
   this.rotation = _r;
-
-  this.component = new Component(function() {});
+  this.component = new Component();
 }
 
 function BoxCollider() {
-  this.component = new Component(function() {});
+  this.component = new Component();
 }
 
 //END ENTITY COMPONENT SYSTEM
@@ -534,7 +648,7 @@ document.addEventListener("keyup",function(key) {
 //BEGIN TIME
 function deltaTime() {
   //Get Time Between The Previous Frame and Current Frame in Seconds
-  return Game.deltaTime/1000;
+  return Game.Time.deltaTime/1000;
 }
 function totalTime() {
   //Get Total Time Over Game Engine's LifeTime
@@ -554,7 +668,7 @@ function canvasColorSet(_color) {
 function canvasColorGet() {
   //Get color of html canvas which holds game in its Color enum
   for (i = 0; i < 15; i++) {
-    if (Color[i] == Color.backgroundColor) return i;
+    if (Color[i] == Game.backgroundColor) return i;
   }
 }
 function rect(x,y,width,height,color) {
