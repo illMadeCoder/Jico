@@ -98,7 +98,7 @@ function DoublyLinkedList() {
     //Return Bool
     //Asserts
     if (_node === undefined) {
-      throw new Error("Object Type DoublyLinkedList's function push given no arg _node", _node);
+      throw new Error("Object Type DoublyLinkedList's function contains given no arg _node", _node);
     }
     let node = this.head;
     while (node != null) {
@@ -124,6 +124,36 @@ function DoublyLinkedList() {
     this.prev = null;
     this.next = null;
   }
+  return this;
+}
+
+function Vector2D(_x,_y) {
+  /*
+  A Vector2D is a datastructure which maintains exactly two elements, x and y.
+  While a Vector2D can act as a container to any two elements, in the case of Jico.js
+  the Vector2D will typically act as a representation of a position on the canvas as
+  a cartesian plane.
+  */
+  //Asserts
+  if (typeof _x !== "number") {
+    throw new Error("Bad Vector2D arg x, not number",_x);
+  }
+  if (typeof _y !== "number") {
+    throw new Error("Bad Vector2D arg x, not number",_y);
+  }
+  //Implementation
+  //Member Variables
+  this.x = _x;
+  this.y = _y;
+  //Member Functions
+  this.magnitude = function () {
+    return Math.sqrt(Math.pow(this.x,2) + Math.pow(this.y,2));
+  }
+  this.set = function (_vector2D) {
+    this.x = _vector2D.x;
+    this.y = _vector2D.y;
+  }
+  return this;
 }
 //END DATA STRUCTURES
 
@@ -150,10 +180,8 @@ var Game = (function () {
   //Entity List
   this.entityLinkedList = new DoublyLinkedList(); //Container for game entities.
   //Time
-  this.Time = {};
-  this.Time.deltaTime = 0;
-  this.Time.totalTime = 0;
-  this.Time.lastTime = Date.now();
+  this.deltaTime = 0;
+  this.totalTime = 0
   this.frameCounter = 0;
   //Private Methods
   this.updateEntityPool = function() {
@@ -166,7 +194,8 @@ var Game = (function () {
     this.entityLinkedList.map(updateFunc);
   }
   this.gameLoop = function() {
-    this.Time.lastTime = Date.now();
+    this.lastTimeMS = Date.now();
+    requestAnimationFrame(this.gameLoop);
     //Update Functions
     game_update(); //Call Scripting Environment's planned game_update function.
     this.updateEntityPool();
@@ -174,24 +203,54 @@ var Game = (function () {
     this.renderer.render(this.stage);
     //Evaluate Time After Frame
     this.frameCounter += 1;
-    this.Time.deltaTime = (Date.now() - this.Time.lastTime);
-    this.Time.totalTime += this.Time.deltaTime;
+    let cur_time = Date.now();
+    this.deltaTime = (cur_time - this.lastTimeMS);
+    this.totalTime += this.deltaTime/1000;
+    if (this.frameCounter < 120) {
+      console.log("last time : " + this.lastTimeMS);
+      console.log("cur time : " + cur_time);
+      console.log("deltaTime : " + this.deltaTime);
+      console.log("totalTime : " + this.totalTime);
+    }
     this.graphics.clear()
-    requestAnimationFrame(this.gameLoop);
   }.bind(this)
   return this;
 })();
 //END GAME ENGINE
 
 //BEGIN ENTITY COMPONENT SYSTEM
-function Entity(_ID,_position,_components,_properties,_tag) {
+function Entity(_ID,_positionVector2D,_components,_properties,_tag) {
+  /*
+  An Entity is a container type for any atoms of the game; from the Titlescreen UI,
+  to the player, to a music manager. An Entity is mostly composed of its components
+  which are generic types of content which are necessary to create the total game.
+  Content such as: sprites, positions, audio, and physics. An Entity must have an
+  ID to identify an object by a name during runtime to either locate it in memory
+  or to determine the consequence of entity interactions. All entities must have
+  the Position component which describes the entities global position in game space,
+  all other components will utilize the entity's position to figure its own position
+  for each frame. This property allows for the capability of grouping objects by a
+  relative distance otherwise known as a local position. Entities also may have a list
+  of 'properties' which is a means to keep track of an entity's relevant and unique members.
+  Finally the tag list allows for a grouping of types such as the 'bullet' type. The convenience
+  of tags is found in allowing for the use of polymorphism during entity interactions.
+
+  Entity will return itself for the use of a script which called it.
+  */
   //Closure
   var entity = this;
+  //Defaults
+  if (_components === undefined)
+    _components = [];
+  if (_tag === undefined)
+    _tag = [];
+  if (_properties === undefined)
+    _properties = {};
   //Asserts
-  if (typeof _ID != "string")
+  if (typeof _ID !== "string")
     throw new Error("Bad Entity ID", _ID);
-  if (!(_position instanceof Position))
-    throw new Error("Bad Entity Position", _ID);
+  if (!(_positionVector2D instanceof Vector2D))
+    throw new Error("Bad Entity Position",_positionVector2D,_ID);
   //Handle common error case where _components are given as a component instead of a list of components
   if (!Array.isArray(_components)) {
     if (_components.component != undefined) {
@@ -199,84 +258,92 @@ function Entity(_ID,_position,_components,_properties,_tag) {
       _components = [temp];
     }
   }
-  if (_components != null && !Array.isArray(_components))
+  if (!Array.isArray(_components))
     throw new Error("Bad Entity Components", _ID);
-  //Defaults
-  if (_components == null) _components = [];
-  if (_tag == null) _tag = [];
-  if (_properties == null) _properties = {};
+  //Implementation
   //Properties
+  //Member Variables
   this.ID = _ID;
-  this.components = []; //only set components via addComponent
-  this.position = _position;
+  this.position = new Position(_positionVector2D);
   this.tag = _tag;
   this.properties = _properties;
-  this.birthTime = Game.Time.totalTime;
-
-  //Component Methods
-  //Method to Add components
-  this.addComponent = function(component) {
+  this.birthTime = Game.totalTime;
+  this.components = []; //only set components via addComponent
+  //Member Functions
+  this.addComponent = function(_component) {
+    //Method to a component, a component needs a reference to the entity it's associated with.
     //Asserts
-    if (component.component == undefined)
-      throw new Error("Bad Add Component", component, "to entity,", entity);
-    if (component.constructor == "Position")
-      throw new Error("Bad Add Component, cannot add a position component", entity)
-    component.component.entity = entity;
-    component.component.position = entity.position;
-    entity.components.push(component);
+    if (_component.component == undefined)
+      throw new Error("Bad Add Component", _component, "to entity,", entity);
+    if (_component.constructor == "Position")
+      throw new Error("Bad Add Component, cannot add multiple position components", entity);
+    //Implementation
+    _component.component.entity = entity;
+    _component.component.position = entity.position;
+    entity.components.push(_component);
   }
-  this.getComponent = function(constructorType) {
+  this.getComponent = function(_constructorType) {
+    //Given a constructor type which is the function that constructs a component,
+    //Return the first found component of the given constructor type.
+    //Asserts
+    if (_constructorType === undefined || typeof _constructorType != "function")
+      throw new Error("Bad constructor type in getComponent", _constructorType, entity);
+    //Implementation
     ret = null;
-    if (typeof constructorType != "function")
-      throw new Error("Bad constructor type in getComponent")
     for (i = 0; i < entity.components.length; i++) {
-      if (entity.components[i].constructor == constructorType)
+      if (_constructorType === entity.components[i].constructor) {
         ret = entity.components[i];
+        break;
+      }
     }
     return ret;
   }
-  this.getComponents = function(constructorType) {
-
-    if (typeof constructorType != "function")
-      throw new Error("Bad constructor type in getComponents")
+  this.getComponents = function(_constructorType) {
+    //Like getComponent, except returns all components of a constructor type in a list.
+    //Asserts
+    if (_constructorType === undefined || typeof _constructorType != "function")
+      throw new Error("Bad constructor type in getComponents", _constructorType, entity);
+    //Implementation
     var ret = []
     for (i = 0; i < entity.components.length; i++) {
-      if (entity.components[i].constructor === constructorType)
+      if (entity.components[i].constructor === _constructorType)
           ret.push(entity.components[i]);
     }
     return ret;
   }
   this.updateComponents = function() {
-    for (i=0; i < entity.components.length; i++)
-      entity.components[i].component.apply();
+    //For each component associated with this entity, call on that components apply function.
+    //Meant to be used each frame.
+    for (i=0; i < entity.components.length; i++) {
+      entity.components[i].component.update();
+    }
   }
   this.getTimeAlive = function() {
+    //Return the quantity of time in which this entity has been initialized in seconds.
     return (Game.totalTime - this.birthTime)/1000;
   }
-  //Handle given components
-  if (Array.isArray(_components))
-    _components.map(this.addComponent);
-  else if (_components != null)
-    throw new Error("Components must be given in the form of an array", _ID);
-
-  //Methods
-  //unstage and stage remove and put the object in game space.
   this.stage = function() {
+    //Place this object in the entity list,
+    //this will mean that all of the entity's component's apply functions will be called each frame.
     if (this.isStaged(this.node) == true)
       console.error("Entity already staged", entity);
     else
-      this.node = Game.entityLinkedList.push(this);
+      this.node = Game.entityLinkedList.push(entity);
   }
   this.unStage = function() {
+    //Remove this object from the entity list,
+    //This function will leave the entity in tact so it can be used for future purposes.
     if (this.isStaged(this.node) == false)
       console.error("Entity already unstaged", entity);
-
     Game.entityLinkedList.remove(this.node);
+    this.node = null;
   }
   this.isStaged = function() {
+    //Check to see if a entity has been staged.
     Game.entityLinkedList.contains(this.node);
   }
   this.compareTag = function(_tag) {
+    //Given a tag, see if this entity contains that tag.
     //Asserts
     if (typeof _tag != "string")
       throw new Error("Bad Tag in Compare Tag", _tag, entity);
@@ -285,38 +352,72 @@ function Entity(_ID,_position,_components,_properties,_tag) {
     return false;
   }
   this.destroy = function() {
+    //Remove this object and each of its components from memory.
     for (i = 0; i<entity.components.length; i++) {
       entity.components[i].component.delete();
     }
     this.unStage();
   }
   //Stage this entity into gamespace
-  this.stage();
+  this.node = Game.entityLinkedList.push(entity);
+  //Handle given components now that the appropriate methods are defined.
+  _components.map(this.addComponent);
   return this;
 }
 //Abstract Type Component
-function Component(_apply, _destroy) {
+function Component(_update,_unStage,_destroy) {
+  /*
+  The Component type is a set of functions which allows for
+  a generic interface with each component. In particular,
+  a component must update each frame, a component must be able
+  to unstage, and a component must be able to destroy itself.
+
+  Furthermore the component acts as a cashe of relevent
+  references for any components to use such as a reference
+  to its associated entity and position.
+  */
   //Defaults
-  if (_apply === undefined) {
-    _apply = function() {};
+  if (_update === undefined) {
+    _update = function() {};
+  }
+  if (_unStage === undefined) {
+    _unStage = function () {};
   }
   if (_destroy === undefined) {
     _destroy = function () {};
   }
   //Asserts
-  if (typeof _apply !== "function") {
-    throw new Error("Bad component apply function", _apply);
+  if (typeof _update !== "function") {
+    throw new Error("Bad component update function", _update);
+  }
+  if (typeof _unStage !== "function") {
+    throw new Error("Bad component unstage function", _unStage);
   }
   if (typeof _destroy !== "function") {
     throw new Error("Bad component destroy function", _destroy);
   }
   //Implementation
-  this.entity = null;
-  this.position = null;
-  this.apply = _apply;
+  this.entity = null; //Will be assigned during entity construction.
+  this.position = null; //Will be assigned during entity construction.
+  //Interface
+  this.update = _update;
   this.destroy = _destroy;
+  this.unStage = _unStage;
+  return this;
 }
+//Implements Component Object
 function Script(_initFunc, _updateFunc) {
+  /*
+  The Script Component describes an entity's behaviour within a game. Where
+  other components act as data containers with a set of methods to interface,
+  the Script Component is a way to interact with an entity's components by providing
+  a function that will be called with each frame. Multiple scripts may exist on
+  an entity, but there is no current guarantee of their execution order.
+
+  A Script is composed of two functions that should be called at appropriate times,
+  the init function that is meant to be called when an object is initialized, and
+  an update function which is meant to be called every frame after the intialization.
+  */
   //Defaults
   if (_updateFunc === undefined) {
     //If the updateFunc has not been defined then only one arg was used
@@ -337,19 +438,27 @@ function Script(_initFunc, _updateFunc) {
   this.component = new Component(
     function() {
       if (this.component.entity.getTimeAlive() == 0) {
-        this.init = this.init.bind(this.component.entity);
-        this.update = this.update.bind(this.component.entity);
-        this.init();
+        this.init(this.component.entity);
       }
-      this.update();
+      this.update(this.component.entity);
     }.bind(this),
+    function() {},
     function () {
       this.init = null;
       this.update = null;
     }.bind(this)
   );
+  return this;
 }
-function GameText(_str, _color, _x_offset, _y_offset, _font) {
+//Implements Component Object
+function Text(_str,_color,_offsetVector2D,_font) {
+  /*
+  The Text Component utilizes PIXI's Text type to create
+  persistent text object to display a string as a graphic on the canvas.
+
+  The Text Component requires a string to display, a color, a vector to offset its position,
+  and a font.
+  */
   //Defaults
   if (_str === undefined) {
     _str = "";
@@ -357,37 +466,31 @@ function GameText(_str, _color, _x_offset, _y_offset, _font) {
   if (_color === undefined) {
     _color = 0x000000 //Black
   }
-  if (_x_offset === undefined) {
-    _x_offset = 0;
-  }
-  if (_y_offset === undefined) {
-    _y_offset = 0;
+  if (_offsetVector2D === undefined) {
+    _vector2D = new Vector2D(0,0);
   }
   if (_font === undefined) {
     _font = "Impact";
   }
   //Asserts
   if (typeof _str !== "string") {
-    throw new Error("Bad string _str in Text Component", _str);
+    throw new Error("Bad arg string _str in Text Component", _str);
   }
   if (typeof _color !== "number") {
-    throw new Error("Bad color _color in Text Component", _color);
+    throw new Error("Bad arg color _color in Text Component", _color);
   }
-  if (typeof _x_offset !== "number") {
-    throw new Error("Bad x offset _x_offset in Text Component", _x_offset);
-  }
-  if (typeof _y_offset !== "number") {
-    throw new Error("Bad y offset _y_offset in Text Component", _y_offset);
+  if (!(_offsetVector2D instanceof Vector2D)) {
+    throw new Error("Bad arg offset Vector2D _offsetVector2D in Text Component", _offsetVector2D);
   }
   if (typeof _font !== "string") {
-    throw new Error("Bad font _font in Text Component", _x_offset);
+    throw new Error("Bad arg font _font in Text Component", _font);
   }
   //Implementation
+  //Member Variables
   this.style = {align : "left", fontSize : 26, fontFamily : _font, fill : _color};
   this.text = new PIXI.Text(_str, this.style);
-  this.x_offset = _x_offset;
-  this.y_offset = _y_offset;
-  Game.stage.addChild(this.text);
+  this.offsetVector2D =_offsetVector2D;
+  //Member Functions
   this.setText = function(_str) {
     this.text.setText(_str);
   }
@@ -396,7 +499,7 @@ function GameText(_str, _color, _x_offset, _y_offset, _font) {
   }
   this.setFont = function(_font) {
     if (typeof _font !== "string") {
-      throw new Error("Bad font _font in Text Component", _x_offset);
+      throw new Error("Bad font _font in Text Component", _font);
     }
     this.style.fontFamily = _font;
     this.text.setStyle(this.style);
@@ -427,49 +530,54 @@ function GameText(_str, _color, _x_offset, _y_offset, _font) {
     }
     this.text.rotation = _r;
   }
-  this.setOffset = function(_x,_y) {
-    this.x_offset = _x;
-    this.y_offset = _y;
+  this.setOffset = function(_offsetVector2D) {
+    this.offsetVector2D = _offsetVector2D;
   }
-  this.getXOffset = function() {
-    return this.x_offset;
+  this.getOffset = function() {
+    return this.offsetVector2D;
   }
-  this.getYOffset = function() {
-    return this.y_offset;
-  }
-
   this.component = new Component(
     function() {
-      this.text.x = this.component.position.x + this.x_offset;
-      this.text.y = this.component.position.y + this.y_offset;
+      this.text.x = this.component.position.x + this.offsetVector2D.x;
+      this.text.y = this.component.position.y + this.offsetVector2D.y;
+    }.bind(this),
+    function() {
+      //!!!Remove Text From Screen But Not Destroy It.
+    }.bind(this),
+    function() {
+      this.text.destroy();
     }.bind(this)
   )
+  Game.stage.addChild(this.text);
+  return this;
 }
-function SpriteRenderer(_spriteFileName,_scale,_x_offset,_y_offset) {
+//Implements Component Object
+function SpriteRenderer(_spriteFileName,_scale,_offsetVector2D) {
   /*
   The SpriteRenderer is defined as an entity component which encapsulates
   the PIXI.js library to provide behaviour associated with graphical sprites
   such as: sprite scale control, sprite display, and the sprite's local position.
-
-
   */
+  //Defaults
+  if (_scale === undefined)
+    _scale = 1;
+  if (_offsetVector2D === undefined)
+    _offsetVector2D = new Vector2D(0,0);
   //Asserts
   if (typeof _spriteFileName != "string")
-    throw new Error("Bad spriteFileName in SpriteRenderer", _spriteFileName);
-
-  if (typeof _scale != "number") _scale = 1;
-  if (typeof _x_offset != "number") _x_offset = 0;
-  if (typeof _y_offset != "number") _y_offset = 0;
+    throw new Error("Bad _spriteFileName in SpriteRenderer", _spriteFileName);
+  if (typeof _scale !== "number")
+    throw new Error("Bad _scale in SpriteRenderer", _scale);
+  if (!(_offsetVector2D instanceof Vector2D))
+    throw new Error("Bad _offsetVector2D in SpriteRenderer", _offsetVector2D);
+  //Implementation
+  //Member Variables
   this.sprite = new PIXI.Sprite(PIXI.Texture.fromImage("Images/" + _spriteFileName));
   this.sprite.scale.x = _scale;
   this.sprite.scale.y = _scale;
-  this.x_offset = _x_offset;
-  this.y_offset = _y_offset;
+  this.offsetVector2D = _offsetVector2D;
+  //Member Functions
   //Function which positions pixi sprite type equal to the objects position plus the relative offset
-  this.updateSprite = function() {
-    this.sprite.position.x = this.component.position.x + this.x_offset;
-    this.sprite.position.y = this.component.position.y + this.y_offset;
-  }
   this.setScaleX = function(_scale) {
     //Asserts
     if (typeof _scale != "number" || _scale <= 0)
@@ -488,17 +596,22 @@ function SpriteRenderer(_spriteFileName,_scale,_x_offset,_y_offset) {
   this.getScaleY = function() {
     return this.sprite.scale.y;
   }
-  Game.stage.addChild(this.sprite); //Setup entity to be rendered
   this.component = new Component(
     function() {
-      this.updateSprite()
+      this.sprite.position.x = this.component.position.vector2D.x + this.offsetVector2D.x;
+      this.sprite.position.y = this.component.position.vector2D.y + this.offsetVector2D.y;
+    }.bind(this),
+    function() {
+    //!!!Figure out how to remove from stage but not totally
     }.bind(this),
     function() {
       this.sprite.destroy();
     }.bind(this)
     );
+  Game.stage.addChild(this.sprite); //Setup entity to be rendered
+  return this;
 }
-
+//Implements Component Object
 function AudioPlayer(_audioFileName) {
   /*
   The AudioPlayer type is defined as an entity component which
@@ -513,12 +626,13 @@ function AudioPlayer(_audioFileName) {
     throw new Error("Bad arg _audioFileName in construction of AudioPlayer component", _audioFileName);
   }
   //Implementation
+  //Member Variables
   this.sound = new Howl({ src : ["Music/" + _audioFileName]});
   this.playing = false;
   this.loop = false;
   this.mute = false;
   this.volume = 1.0;
-
+  //Member Functions
   this.play = function() {
     this.playing = true;
     this.sound.play();
@@ -552,21 +666,24 @@ function AudioPlayer(_audioFileName) {
     return this.volume;
   }
   this.setVolume = function(_newVolume) {
-    //Needs fix
     this.volume = _newVolume;
-    if (!this.mute)
-      this.sound.volume(_newVolume);
+    this.sound.volume(_newVolume);
   }
   this.isPlaying = function() {
     return this.playing;
   }
-  this.component = new Component(function() {},
+  this.component = new Component(
+  function() {},
   function() {
     this.stop();
-  });
+  }.bind(this),
+  function() {
+    this.stop();
+  }.bind(this)
+  );
 }
-
-function Position(_x,_y,_r) {
+//Implements Component Object
+function Position(_vector2D,_r) {
   /*
   The Position type is defined as an entity component
   which provides a container for the global position of
@@ -577,26 +694,20 @@ function Position(_x,_y,_r) {
   object per entity, and an entity must maintain one Position object.
   */
   //Defaults
-  if (_x === undefined) _x = 0;
-  if (_y === undefined) _y = 0;
   if (_r === undefined) _r = 0;
   //Asserts
-  if (typeof _x !== "number") {
-    throw new Error("Bad arguement _x in Position", _x);
-  }
-  if (typeof _y !== "number") {
-    throw new Error("Bad arguement _y in Position", _y);
+  if (!(_vector2D instanceof Vector2D)) {
+    throw new Error("Bad arguement _vector2D in Position", _vector2D);
   }
   if (typeof _r !== "number") {
     throw new Error("Bad arguement _r in Position", _r);
   }
   //Implementation
-  this.x = _x;
-  this.y = _y;
+  this.vector2D = _vector2D;
   this.rotation = _r;
   this.component = new Component();
 }
-
+//Implements Component Object
 function BoxCollider() {
   this.component = new Component();
 }
@@ -626,6 +737,7 @@ Get whether a given key.keyCode is down, where
   else throw new Error("Bad btn input", i);
 }
 document.addEventListener("keydown",function(key) {
+  //Catches Keydown Input from user.
     if (key.keyCode == 90) btn_array[0] = true;
     if (key.keyCode == 88) btn_array[1] = true;
     if (key.keyCode == 37) btn_array[2] = true;
@@ -635,6 +747,7 @@ document.addEventListener("keydown",function(key) {
   }
 );
 document.addEventListener("keyup",function(key) {
+  //Catches Keyup Input from user.
     if (key.keyCode == 90) btn_array[0] = false;
     if (key.keyCode == 88) btn_array[1] = false;
     if (key.keyCode == 37) btn_array[2] = false;
@@ -645,17 +758,17 @@ document.addEventListener("keyup",function(key) {
 );
 
 //END INPUT
-//BEGIN TIME
+//BEGIN TIME API
 function deltaTime() {
   //Get Time Between The Previous Frame and Current Frame in Seconds
-  return Game.Time.deltaTime/1000;
+  return Game.deltaTime/1000;
 }
 function totalTime() {
   //Get Total Time Over Game Engine's LifeTime
   return Game.totalTime/1000;
 }
 //END TIME
-//BEGIN GRAPHICS
+//BEGIN GRAPHICS API
 function canvasColorSet(_color) {
   //Set color of html canvas which holds game
   if (typeof _color === "number") {
