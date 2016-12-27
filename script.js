@@ -5,7 +5,10 @@ function testEntity() {
   let sprite = new SpriteRenderer("bunny.png",4);
   let moveScript = new Script(
     function(entity) {
+    },
+    function(entity) {
     }
+
   )
   return new Entity(name,position,[sprite,moveScript]);
 }

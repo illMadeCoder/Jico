@@ -180,8 +180,9 @@ var Game = (function () {
   //Entity List
   this.entityLinkedList = new DoublyLinkedList(); //Container for game entities.
   //Time
-  this.deltaTime = 0;
-  this.totalTime = 0
+  this.deltaTimeMS = 0;
+  this.totalTimeS = 0;
+  this.lastTimeMS = Date.now();
   this.frameCounter = 0;
   //Private Methods
   this.updateEntityPool = function() {
@@ -194,8 +195,9 @@ var Game = (function () {
     this.entityLinkedList.map(updateFunc);
   }
   this.gameLoop = function() {
-    this.lastTimeMS = Date.now();
     requestAnimationFrame(this.gameLoop);
+    this.deltaTimeMS = Date.now() - this.lastTimeMS;
+    this.totalTimeS += this.deltaTimeMS/1000;
     //Update Functions
     game_update(); //Call Scripting Environment's planned game_update function.
     this.updateEntityPool();
@@ -203,15 +205,7 @@ var Game = (function () {
     this.renderer.render(this.stage);
     //Evaluate Time After Frame
     this.frameCounter += 1;
-    let cur_time = Date.now();
-    this.deltaTime = (cur_time - this.lastTimeMS);
-    this.totalTime += this.deltaTime/1000;
-    if (this.frameCounter < 120) {
-      console.log("last time : " + this.lastTimeMS);
-      console.log("cur time : " + cur_time);
-      console.log("deltaTime : " + this.deltaTime);
-      console.log("totalTime : " + this.totalTime);
-    }
+    this.lastTimeMS = Date.now()
     this.graphics.clear()
   }.bind(this)
   return this;
@@ -267,7 +261,7 @@ function Entity(_ID,_positionVector2D,_components,_properties,_tag) {
   this.position = new Position(_positionVector2D);
   this.tag = _tag;
   this.properties = _properties;
-  this.birthTime = Game.totalTime;
+  this.birthTime = Game.totalTimeS;
   this.components = []; //only set components via addComponent
   //Member Functions
   this.addComponent = function(_component) {
@@ -320,7 +314,7 @@ function Entity(_ID,_positionVector2D,_components,_properties,_tag) {
   }
   this.getTimeAlive = function() {
     //Return the quantity of time in which this entity has been initialized in seconds.
-    return (Game.totalTime - this.birthTime)/1000;
+    return (Game.totalTimeS - this.birthTime);
   }
   this.stage = function() {
     //Place this object in the entity list,
@@ -435,10 +429,12 @@ function Script(_initFunc, _updateFunc) {
   //Implementation
   this.init = _initFunc;
   this.update = _updateFunc;
+  this.initialized = false;
   this.component = new Component(
     function() {
-      if (this.component.entity.getTimeAlive() == 0) {
+      if (!this.initialized) {
         this.init(this.component.entity);
+        this.initialized = true;
       }
       this.update(this.component.entity);
     }.bind(this),
@@ -761,11 +757,11 @@ document.addEventListener("keyup",function(key) {
 //BEGIN TIME API
 function deltaTime() {
   //Get Time Between The Previous Frame and Current Frame in Seconds
-  return Game.deltaTime/1000;
+  return Game.deltaTimeMS/1000;
 }
 function totalTime() {
   //Get Total Time Over Game Engine's LifeTime
-  return Game.totalTime/1000;
+  return Game.totalTimeS;
 }
 //END TIME
 //BEGIN GRAPHICS API
