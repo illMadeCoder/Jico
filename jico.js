@@ -176,8 +176,8 @@ function Animation(_name,_anim) {
   if (typeof _name !== "string") {
     throw new Error("Bad Animation arg _name, not filepath",_name);
   }
-  if (Array.isArray(_anim)) {
-    throw new Error("Bad Tuple arg x, not array",_anim);
+  if (!Array.isArray(_anim)) {
+    throw new Error("Bad Animation arg _anim, not array", _anim);
   }
   //Implementation
   //Member Variables
@@ -201,12 +201,12 @@ var Game = (function () {
   //Implementation
   //Properties
   //Rendering
-  this.backgroundColor = Color.black; //Default canvas color
-  this.renderer = PIXI.autoDetectRenderer(800,600,this.height,{backgroundColor : this.backgroundColor}); //Canvas Renderer
-  this.stage = new PIXI.Container(); //Stage for canvas
+  this.renderer = PIXI.autoDetectRenderer(800,600,{backgroundColor : 0x000000}); //Canvas Renderer
   document.body.appendChild(this.renderer.view);
+  this.stage = new PIXI.Container(); //Stage for canvas
   this.graphics = new PIXI.Graphics();
   this.stage.addChild(this.graphics);
+  PIXI.settings.SCALE_MODE = PIXI.SCALE_MODES.NEAREST;
   //Entity List
   this.entityLinkedList = new DoublyLinkedList(); //Container for game entities.
   //Time
@@ -599,7 +599,8 @@ function Text(_str,_color,_offsetVector2D,_font) {
   //Member Variables
   this.style = {align : "left", fontSize : 26, fontFamily : _font, fill : _color, align : "right"};
   this.text = new PIXI.Text(_str, this.style);
-  this.offsetVector2D =_offsetVector2D;
+  this.offsetVector2D = _offsetVector2D;
+
   //Member Functions
   this.setText = function(_str) {
     if (typeof _str !== "string") {
@@ -689,6 +690,7 @@ function Text(_str,_color,_offsetVector2D,_font) {
   this.getOffset = function() {
     return this.offsetVector2D;
   }
+
   this.component = new Component(
     function() {
       this.text.x = this.component.position.vector2D.x + this.offsetVector2D.x;
@@ -711,11 +713,6 @@ function SpriteRenderer(_asset,_scale,_offsetVector2D) {
   The SpriteRenderer is defined as an entity component which encapsulates
   the PIXI.js library to provide behaviour associated with graphical sprites
   such as: sprite scale control, sprite display, and the sprite's local position.
-
-  If the sprite renderer is handed a single image path it will assume the state of
-  being a single simple sprite, else if the asset is in the form of an animation it will
-  assume the state of having a single animation, finally if it has an array of Animations
-  it will take form of a renderer with multiple animations to switch through.
   */
   //Defaults
   if (_scale === undefined) {
@@ -734,40 +731,7 @@ function SpriteRenderer(_asset,_scale,_offsetVector2D) {
   if (_offsetVector2D.constructor !== Vector2D) {
     throw new Error("Bad _offsetVector2D in SpriteRenderer", _offsetVector2D);
   }
-  //Implementation
-  this.sprite = null
-  //Helper function
-  this.addAnimation = function(_animation) {
-    //Asserts
-    if (typeof _animation.name !== "string") {
-      throw new Error("Bad name arg _name in SpriteRenderer addAnimation", _name);
-    }
-    if (!Array.isArray(_animation.anim)) {
-      throw new Error("Bad arnimation arg _anim in SpriteRenderer addAnimation", _anim);
-    }
-    //Implementation
-    let textureArray = [];
-    for (let i = 0; i < _animation.anim; i++) {
-      let texture = PIXI.Texture.fromImage("Animations/" + _animation.anim[i]);
-      textureArray.push(texture);
-    }
-    this.sprite.push(new Animation(_animation.name,new PIXI.AnimatedSprite(textureArray)));
-  }
-  //Member Variables
-  if (_asset[0].constructor === Animation) {
-    //Is array of animation
-    this.sprite = [];
-    for (let i = 0; i < _asset.length; i++) {
-      this.addAnimation(_asset[i]);
-    }
-  } else if (_asset.constructor === Animation) {
-    //Is an animation
-    this.addAnimation(_asset);
-    this.sprite = [];
-  } else {
-    //Is Static Sprite
-    this.sprite = new PIXI.Sprite(PIXI.Texture.fromImage("Images/" + _asset));
-  }
+  this.sprite = new PIXI.Sprite(PIXI.Texture.fromImage("Images/" + _asset));
   this.sprite.scale.x = _scale;
   this.sprite.scale.y = _scale;
   this.offsetVector2D = _offsetVector2D;
@@ -812,8 +776,8 @@ function SpriteRenderer(_asset,_scale,_offsetVector2D) {
       throw new Error("Bad arg _pivotPoint in SpriteRenderer function setPivot, must be string", _pivotPoint, this.component.entity);
     }
     if (_pivotPoint === "center") {
-      this.sprite.pivot.x = this.sprite.width*.5;
-      this.sprite.pivot.y = this.sprite.height*.5;
+      this.sprite.anchor.x = .5;
+      this.sprite.anchor.y = .5;
     } else if (_pivotPoint == "top left") {
       this.sprite.pivot.x = 0;
       this.sprite.pivot.y = 0;
@@ -870,7 +834,6 @@ function SpriteRenderer(_asset,_scale,_offsetVector2D) {
       this.sprite.position.x = this.component.position.vector2D.x + this.offsetVector2D.x;
       this.sprite.position.y = this.component.position.vector2D.y + this.offsetVector2D.y;
       this.sprite.rotation = this.component.position.rotation;
-
     }.bind(this),
     function() {
       //!!!Remove Text From Screen But Not Destroy It.
@@ -880,7 +843,81 @@ function SpriteRenderer(_asset,_scale,_offsetVector2D) {
     }.bind(this)
     );
   Game.stage.addChild(this.sprite); //Setup entity to be rendered
+  return this;
+}
 
+function Animator(_asset,_startAnim,_scale,_offsetVector2D) {
+  //Defaults
+  if (_startAnim === undefined) {
+    //Must Assert Early
+    if (!Array.isArray(_asset)) {
+      throw new Error("Bad _asset in Animator", _asset);
+    }
+    _startAnim = _asset[0].name;
+  }
+  if (_scale === undefined) {
+    _scale = 1;
+  }
+  if (_offsetVector2D === undefined) {
+    _offsetVector2D = new Vector2D(0,0);
+  }
+  //Asserts
+  if (typeof _startAnim !== "string") {
+    throw new Error("Bad _startState in Animator", _startState);
+  }
+  if (typeof _scale !== "number") {
+    throw new Error("Bad _scale in Animator", _scale);
+  }
+  if (_offsetVector2D.constructor !== Vector2D) {
+    throw new Error("Bad _offsetVector2D in Animator", _offsetVector2D);
+  }
+  //Member Variables
+  this.animations = [];
+  this.animation = null;
+  this.offsetVector2D = _offsetVector2D;
+  //Helper function
+  this.addAnimation = function(_animation) {
+    //Asserts
+    if (typeof _animation.name !== "string") {
+      throw new Error("Bad name arg _name in SpriteRenderer addAnimation", _name);
+    }
+    if (!Array.isArray(_animation.anim)) {
+      throw new Error("Bad arnimation arg _anim in SpriteRenderer addAnimation", _anim);
+    }
+
+    //Implementation
+    let textureArray = [];
+    for (let i = 0; i < _animation.anim.length; i++) {
+      textureArray[i] = PIXI.Texture.fromImage("Animations/" + _animation.anim[i]);
+    }
+    this.animations.push(new Tuple(_animation.name,new PIXI.extras.AnimatedSprite(textureArray)));
+  }
+  for (let i = 0; i < _asset.length; i++) {
+    this.addAnimation(_asset[i]);
+  }
+  //Member Functions
+  this.setAnimation = function(_animName) {
+    for (let i = 0; i < this.animations.length; i++) {
+      if (_animName === this.animations[i].x) {
+        this.animation = this.animations[i].y;
+        return;
+      }
+    }
+    throw new Error("No found _animName for Animator setAnimation", _animName, this.component.entity);
+  }
+  this.setAnimation(_startAnim);
+  Game.stage.addChild(this.animation);
+  this.animation.play();
+  this.animation.animationSpeed = 2;
+  this.component = new Component(
+    function() {
+      this.animation.x = this.component.position.vector2D.x + this.offsetVector2D.x;
+      this.animation.y = this.component.position.vector2D.y + this.offsetVector2D.y;
+      this.animation.rotation = this.component.position.rotation;
+    }.bind(this),
+    function() {},
+    function() {}
+  );
   return this;
 }
 //Implements Component Object

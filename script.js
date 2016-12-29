@@ -5,7 +5,7 @@ function titleText() {
   let text = new Text("Getting Somewhere",Color.blue,new Vector2D(0,0),"ubuntu");
   let moveScript = new Script(
     function(entity) {
-      text.setOffset(new Vector2D(Game.width/2-text.getWidth()/2, 5));
+      text.setOffset(new Vector2D(Game.renderer.width/2-text.getWidth()/2, 5));
     },
     function(entity) {
     }
@@ -20,16 +20,16 @@ function arena() {
   let renderArena = new Script(
     function(entity) {
       if (!lineFlip)
-        line(0,linePosition,Game.width/2+25,1,Color.red);
+        line(0,linePosition,Game.renderer.width/2+25,1,Color.red);
       else
-        line(Game.width/2-25,linePosition,Game.width,1,Color.red);
+        line(Game.renderer.width/2-25,linePosition,Game.renderer.width,1,Color.red);
 
       linePosition += 500*deltaTime();
       if (linePosition >= Game.height) {
         linePosition = 0;
         lineFlip = !lineFlip;
       }
-      rect(Game.width/2-100,Game.height/2-100,200,200,Color.white);
+      rect(Game.renderer.width/2-100,Game.renderer.height/2-100,200,200,Color.white);
       }
     )
   return new Entity(name,position,[renderArena]);
@@ -37,8 +37,9 @@ function arena() {
 
 function player() {
   let name = "player";
-  let position = new Vector2D(Game.width/2-16,Game.height/2-16);
-  let spriteR = new SpriteRenderer("KindleConceptAI.png",1);
+  let position = new Vector2D(Game.renderer.width/2-16,Game.renderer.height/2-16);
+  let spriteR = new SpriteRenderer("KindleConceptAI.png",2);
+  let anim = new Animator([new Animation("test",["KindleConceptAI_Animation 1_0.png","KindleConceptAI_Animation 1_1.png"])]);
   let playerController = new Script(
       function(entity) {
       },
@@ -51,13 +52,29 @@ function player() {
         spriteR.setPivot("center");
       }
     )
-  return new Entity(name,position,[playerController,spriteR])
+  return new Entity(name,position,[playerController,spriteR,anim])
 }
 
 function musicPlayer() {
   let name = "musicPlayer";
   let position = new Vector2D(0,0);
   let audio = new AudioPlayer("Sun Rising Arp 120bpm.wav");
+  let musicManager = new Script(
+    function(entity) {
+      if (!audio.isPlaying()) {
+        audio.setLooping(true);
+        audio.setVolume(0);
+        audio.play();
+      }
+    }
+  )
+  return new Entity(name,position,[audio,musicManager]);
+}
+
+function animationTest() {
+  let name = "animationTest";
+  let position = new Vector2D(0,0);
+  let anim = new SpriteRenderer()
   let musicManager = new Script(
     function(entity) {
       if (!audio.isPlaying()) {
