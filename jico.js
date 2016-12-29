@@ -155,6 +155,36 @@ function Vector2D(_x,_y) {
   }
   return this;
 }
+
+function Tuple(_x,_y) {
+  //Asserts
+  if (_x === undefined) {
+    throw new Error("Bad Tuple arg x, not defined",_x);
+  }
+  if (_y === undefined) {
+    throw new Error("Bad Tuple arg x, not defined",_y);
+  }
+  //Implementation
+  //Member Variables
+  this.x = _x;
+  this.y = _y;
+  return this;
+}
+
+function Animation(_name,_anim) {
+  //Asserts
+  if (typeof _name !== "string") {
+    throw new Error("Bad Animation arg _name, not filepath",_name);
+  }
+  if (Array.isArray(_anim)) {
+    throw new Error("Bad Tuple arg x, not array",_anim);
+  }
+  //Implementation
+  //Member Variables
+  this.name = _name;
+  this.anim = _anim;
+  return this;
+}
 //END DATA STRUCTURES
 
 //BEGIN GAME ENGINE
@@ -172,9 +202,7 @@ var Game = (function () {
   //Properties
   //Rendering
   this.backgroundColor = Color.black; //Default canvas color
-  this.width = 800;
-  this.height = 600;
-  this.renderer = PIXI.autoDetectRenderer(this.width,this.height,{backgroundColor : this.backgroundColor}); //Canvas Renderer
+  this.renderer = PIXI.autoDetectRenderer(800,600,this.height,{backgroundColor : this.backgroundColor}); //Canvas Renderer
   this.stage = new PIXI.Container(); //Stage for canvas
   document.body.appendChild(this.renderer.view);
   this.graphics = new PIXI.Graphics();
@@ -210,6 +238,28 @@ var Game = (function () {
     this.lastTimeMS = Date.now()
     this.graphics.clear()
   }.bind(this)
+  this.setWidth = function(_width) {
+    this.renderer.width = _width;
+  }
+  this.getWidth = function() {
+    return this.renderer.width;
+  }
+  this.setHeight = function(_height) {
+    this.renderer.height = _height;
+  }
+  this.getHieght = function() {
+    return this.renderer.height;
+  }
+  this.setBackground = function(_color) {
+    //Set color of html canvas which holds game
+    if (typeof _color !== "number")
+      throw new Error("Bad canvasColorSet arg _color: ", _color);
+    this.renderer.backgroundColor = _color;
+  }.bind(this);
+  this.getBackground = function() {
+    //Get color of html canvas which holds game in its Color enum
+    return this.renderer.backgroundColor;
+  }.bind(this);
   return this;
 })();
 //END GAME ENGINE
@@ -234,14 +284,14 @@ function Entity(_ID,_positionVector2D,_components,_properties,_tag) {
   Entity will return itself for the use of a script which called it.
   */
   //Closure
-  var entity = this;
+  let entity = this;
   //Defaults
   if (_components === undefined)
     _components = [];
-  if (_tag === undefined)
-    _tag = [];
   if (_properties === undefined)
     _properties = {};
+  if (_tag === undefined)
+    _tag = [];
   //Asserts
   if (typeof _ID !== "string")
     throw new Error("Bad Entity ID", _ID);
@@ -285,7 +335,7 @@ function Entity(_ID,_positionVector2D,_components,_properties,_tag) {
     if (_constructorType === undefined || typeof _constructorType != "function")
       throw new Error("Bad constructor type in getComponent", _constructorType, entity);
     //Implementation
-    ret = null;
+    let ret = null;
     for (i = 0; i < entity.components.length; i++) {
       if (_constructorType === entity.components[i].constructor) {
         ret = entity.components[i];
@@ -331,6 +381,9 @@ function Entity(_ID,_positionVector2D,_components,_properties,_tag) {
     //This function will leave the entity in tact so it can be used for future purposes.
     if (this.isStaged(this.node) == false)
       console.error("Entity already unstaged", entity);
+    for (i = 0; i<entity.components.length; i++) {
+      entity.components[i].component.unStage();
+    }
     Game.entityLinkedList.remove(this.node);
     this.node = null;
   }
@@ -400,6 +453,56 @@ function Component(_update,_unStage,_destroy) {
   this.destroy = _destroy;
   this.unStage = _unStage;
   return this;
+}
+//Implements Component Object
+function Position(_vector2D,_r) {
+  /*
+  The Position type is defined as an entity component
+  which provides a container for the global position of
+  an entity on canvas space. All other position based components
+  will utilize an entity's Position component to have a frame of reference
+
+  The Position component is special in that there can only exist a single Position
+  object per entity, and an entity must maintain one Position object.
+  */
+  //Defaults
+  if (_r === undefined) _r = 0;
+  //Asserts
+  if (_vector2D.constructor !== Vector2D) {
+    throw new Error("Bad arguement _vector2D in Position", _vector2D);
+  }
+  if (typeof _r !== "number") {
+    throw new Error("Bad arguement _r in Position", _r);
+  }
+  //Implementation
+  //Member Variables
+  this.vector2D = _vector2D;
+  this.rotation = _r;
+  //Member Functions
+  this.setX = function(_x) {
+    this.vector2D.x = _x;
+  }
+  this.getX = function() {
+    return this.vector2D.x;
+  }
+  this.setY = function(_y) {
+    this.vector2D.y = _y;
+  }
+  this.getY = function() {
+    return this.vector2D.y;
+  }
+  this.setRotation = function(_r) {
+    this.rotation = _r;
+  }
+  this.getRotation = function() {
+    return this.rotation;
+  }
+
+  this.component = new Component(
+    function() {},
+    function() {},
+    function() {}
+  );
 }
 //Implements Component Object
 function Script(_initFunc, _updateFunc, _destroyFunc) {
@@ -603,11 +706,16 @@ function Text(_str,_color,_offsetVector2D,_font) {
   return this;
 }
 //Implements Component Object
-function SpriteRenderer(_spriteFileName,_scale,_offsetVector2D) {
+function SpriteRenderer(_asset,_scale,_offsetVector2D) {
   /*
   The SpriteRenderer is defined as an entity component which encapsulates
   the PIXI.js library to provide behaviour associated with graphical sprites
   such as: sprite scale control, sprite display, and the sprite's local position.
+
+  If the sprite renderer is handed a single image path it will assume the state of
+  being a single simple sprite, else if the asset is in the form of an animation it will
+  assume the state of having a single animation, finally if it has an array of Animations
+  it will take form of a renderer with multiple animations to switch through.
   */
   //Defaults
   if (_scale === undefined) {
@@ -617,8 +725,8 @@ function SpriteRenderer(_spriteFileName,_scale,_offsetVector2D) {
     _offsetVector2D = new Vector2D(0,0);
   }
   //Asserts
-  if (_spriteFileName == null || typeof _spriteFileName != "string") {
-    throw new Error("Bad _spriteFileName in SpriteRenderer", _spriteFileName);
+  if (_asset == null || typeof _asset != "string" || Array.isArray(_asset)) {
+    throw new Error("Bad _asset in SpriteRenderer", _asset);
   }
   if (typeof _scale !== "number") {
     throw new Error("Bad _scale in SpriteRenderer", _scale);
@@ -627,8 +735,39 @@ function SpriteRenderer(_spriteFileName,_scale,_offsetVector2D) {
     throw new Error("Bad _offsetVector2D in SpriteRenderer", _offsetVector2D);
   }
   //Implementation
+  this.sprite = null
+  //Helper function
+  this.addAnimation = function(_animation) {
+    //Asserts
+    if (typeof _animation.name !== "string") {
+      throw new Error("Bad name arg _name in SpriteRenderer addAnimation", _name);
+    }
+    if (!Array.isArray(_animation.anim)) {
+      throw new Error("Bad arnimation arg _anim in SpriteRenderer addAnimation", _anim);
+    }
+    //Implementation
+    let textureArray = [];
+    for (let i = 0; i < _animation.anim; i++) {
+      let texture = PIXI.Texture.fromImage("Animations/" + _animation.anim[i]);
+      textureArray.push(texture);
+    }
+    this.sprite.push(new Animation(_animation.name,new PIXI.AnimatedSprite(textureArray)));
+  }
   //Member Variables
-  this.sprite = new PIXI.Sprite(PIXI.Texture.fromImage("Images/" + _spriteFileName));
+  if (_asset[0].constructor === Animation) {
+    //Is array of animation
+    this.sprite = [];
+    for (let i = 0; i < _asset.length; i++) {
+      this.addAnimation(_asset[i]);
+    }
+  } else if (_asset.constructor === Animation) {
+    //Is an animation
+    this.addAnimation(_asset);
+    this.sprite = [];
+  } else {
+    //Is Static Sprite
+    this.sprite = new PIXI.Sprite(PIXI.Texture.fromImage("Images/" + _asset));
+  }
   this.sprite.scale.x = _scale;
   this.sprite.scale.y = _scale;
   this.offsetVector2D = _offsetVector2D;
@@ -637,7 +776,6 @@ function SpriteRenderer(_spriteFileName,_scale,_offsetVector2D) {
   //Member Functions
   //Function which positions pixi sprite type equal to the objects position plus the relative offset
   this.setScaleX = function(_scale) {
-    //Asserts
     if (typeof _scale != "number" || _scale <= 0)
       throw new Error("Bad Sprite Scale Set", _scale, this.component.entity);
     this.sprite.scale.x = _scale;
@@ -646,7 +784,6 @@ function SpriteRenderer(_spriteFileName,_scale,_offsetVector2D) {
     return this.sprite.scale.x;
   }
   this.setScaleY = function(_scale) {
-    //Asserts
     if (typeof _scale != "number" || _scale <= 0)
       throw new Error("Bad Sprite Scale Set", _scale, this.component.entity);
     this.sprite.scale.y = _scale;
@@ -720,12 +857,20 @@ function SpriteRenderer(_spriteFileName,_scale,_offsetVector2D) {
   this.getVisible = function() {
     return this.sprite.visible;
   }
+  this.setSprite = function(_asset) {
+    this.sprite.destroy();
+    this.sprite = new PIXI.Sprite(PIXI.Texture.fromImage("Images/" + _asset));
+  }
+  this.getSprite = function() {
+    return this.sprite.texture;
+  }
 
   this.component = new Component(
     function() {
       this.sprite.position.x = this.component.position.vector2D.x + this.offsetVector2D.x;
       this.sprite.position.y = this.component.position.vector2D.y + this.offsetVector2D.y;
       this.sprite.rotation = this.component.position.rotation;
+
     }.bind(this),
     function() {
       //!!!Remove Text From Screen But Not Destroy It.
@@ -735,6 +880,7 @@ function SpriteRenderer(_spriteFileName,_scale,_offsetVector2D) {
     }.bind(this)
     );
   Game.stage.addChild(this.sprite); //Setup entity to be rendered
+
   return this;
 }
 //Implements Component Object
@@ -823,56 +969,6 @@ function AudioPlayer(_audioFileName,_volume,_loop,_play) {
   );
 }
 //Implements Component Object
-function Position(_vector2D,_r) {
-  /*
-  The Position type is defined as an entity component
-  which provides a container for the global position of
-  an entity on canvas space. All other position based components
-  will utilize an entity's Position component to have a frame of reference
-
-  The Position component is special in that there can only exist a single Position
-  object per entity, and an entity must maintain one Position object.
-  */
-  //Defaults
-  if (_r === undefined) _r = 0;
-  //Asserts
-  if (_vector2D.constructor !== Vector2D) {
-    throw new Error("Bad arguement _vector2D in Position", _vector2D);
-  }
-  if (typeof _r !== "number") {
-    throw new Error("Bad arguement _r in Position", _r);
-  }
-  //Implementation
-  //Member Variables
-  this.vector2D = _vector2D;
-  this.rotation = _r;
-  //Member Functions
-  this.setX = function(_x) {
-    this.vector2D.x = _x;
-  }
-  this.getX = function() {
-    return this.vector2D.x;
-  }
-  this.setY = function(_y) {
-    this.vector2D.y = _y;
-  }
-  this.getY = function() {
-    return this.vector2D.y;
-  }
-  this.setRotation = function(_r) {
-    this.rotation = _r;
-  }
-  this.getRotation = function() {
-    return this.rotation;
-  }
-
-  this.component = new Component(
-    function() {},
-    function() {},
-    function() {}
-  );
-}
-//Implements Component Object
 function BoxCollider() {
   this.component = new Component();
 }
@@ -938,21 +1034,6 @@ function totalTime() {
   return Game.totalTimeS;
 }
 //BEGIN GRAPHICS API
-function canvasColorSet(_color) {
-  //Set color of html canvas which holds game
-  if (typeof _color === "number") {
-    backgroundColor = _color;
-    Game.renderer.backgroundColor = _color;
-  }
-  else
-    throw new Error("Bad canvasColorSet arg _color: ", _color);
-}
-function canvasColorGet() {
-  //Get color of html canvas which holds game in its Color enum
-  for (i = 0; i < 15; i++) {
-    if (Color[i] == Game.backgroundColor) return i;
-  }
-}
 function rect(x,y,width,height,color) {
   Game.graphics.lineStyle(2,color);
   Game.graphics.drawRect(x,y,width,height);
