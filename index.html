@@ -8,6 +8,8 @@
 <script src="jico_physics.js"></script>
 <script src="script.js"></script>
 <script>
-  Game.gameLoop();
+  if (Loader.isLoaded) {
+    Game.gameLoop();
+  }
 </script>
 </body

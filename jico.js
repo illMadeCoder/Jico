@@ -1,7 +1,80 @@
+
 //jico.js A Web Based Game Engine
 //jico depends on Pixi.js, and Howler.js to operate.
 //By Jesse Bergerstock
 //November 2016
+
+//example json until parser is made.
+json = {
+  assets : {
+    Audio : [],
+    Sprite : [
+          {
+            ID : "bunny",
+            FilePath : "bunny.png"
+          },
+          {
+            ID : "kindle",
+            FilePath : "KindleConceptAI.png"
+          },
+          {
+            ID : "player",
+            FilePath : "player.png"
+          }
+        ],
+    Animation : [
+      {
+        ID : "texture",
+        FilePath : "textures.json"
+      }
+    ]
+  }
+}
+
+Loader = (function() {
+  this.isLoaded = false;
+  this.spritesLoaded = false;
+  this.animationsLoaded = false;
+  this.audioSourceLoaded = false;
+  this.loadIn = function(_loadType) {
+    this[_loadType] = true;
+    if (this.spritesLoaded == true && this.animationsLoaded == true && this.audioSourceLoaded == true) {
+      Loader.isLoaded = true;
+      Game.startGame();
+    }
+  }
+  //Load Sprites
+  this.spriteLoader = new PIXI.loaders.Loader();
+  this.spriteArray = json.assets.Sprite;
+  for (let i = 0; i < this.spriteArray.length; i++) {
+    this.spriteLoader.add(this.spriteArray[i].ID,"Images/" + this.spriteArray[i].FilePath);
+  }
+  this.spriteLoader.load(function () {this.loadIn("spritesLoaded")}.bind(this));
+
+  this.SpriteAssetByID = function(_assetID) {
+    if (typeof _assetID !== "string") {
+      throw new Error("Bad arg _assetID in Loader's SpriteAssetByID");
+    }
+    return this.spriteLoader.resources[_assetID].texture;
+  }
+  //Load Animations
+  this.animationLoader = new PIXI.loaders.Loader();
+  this.animationArray = json.assets.Animation;
+  for (let i = 0; i < this.animationArray.length; i++) {
+    this.animationLoader.add(this.animationArray[i].ID,"Animations/" + this.animationArray[i].FilePath);
+  }
+  this.animationLoader.load(function () {this.loadIn("animationsLoaded");console.log(this.animationLoader.resources["texture"])})
+
+  this.AnimationSource = function() {
+    return this;
+  }
+  //Load AudioSource
+  this.loadIn("audioSourceLoaded");
+  this.AudioSource = function(_assetID) {}
+  return this;
+
+})();
+
 
 //Enumorate Color Codes
 //Pico-8 Color Palette
@@ -214,6 +287,8 @@ var Game = (function () {
   this.totalTimeS = 0;
   this.lastTimeMS = Date.now();
   this.frameCounter = 0;
+
+  this.initialized = false;
   //Private Methods
   this.updateEntityPool = function() {
     let updateFunc = function(_entity) {
@@ -223,6 +298,13 @@ var Game = (function () {
       _entity.updateComponents()
     }
     this.entityLinkedList.map(updateFunc);
+  }
+  this.startGame = function() {
+    if (!this.initialized) {
+      game_init();
+      this.initialized = true;
+    }
+    this.gameLoop();
   }
   this.gameLoop = function() {
     requestAnimationFrame(this.gameLoop);
@@ -731,7 +813,7 @@ function SpriteRenderer(_asset,_scale,_offsetVector2D) {
   if (_offsetVector2D.constructor !== Vector2D) {
     throw new Error("Bad _offsetVector2D in SpriteRenderer", _offsetVector2D);
   }
-  this.sprite = new PIXI.Sprite(PIXI.Texture.fromImage("Images/" + _asset));
+  this.sprite = new PIXI.Sprite.from(Loader.SpriteAssetByID(_asset));
   this.sprite.scale.x = _scale;
   this.sprite.scale.y = _scale;
   this.offsetVector2D = _offsetVector2D;
@@ -847,12 +929,22 @@ function SpriteRenderer(_asset,_scale,_offsetVector2D) {
 }
 
 function Animator(_asset,_startAnim,_scale,_offsetVector2D) {
+  /*
+  The Animator is defined as an entity component which encapsulates the
+  PIXI.js library to provide behaviour associated with graphical sprite animations.
+  An animations is defined as a data structure in jico which maintains two
+  properties, a name and an array of image files which will be played in sequence.
+  The animator then hold an array of animations and can switch between them by
+  using their name as a locator.
+  */
+  //Fix single animation to array of single animation
+
+  if (!Array.isArray(_asset)) {
+    let temp = _asset;
+    _asset = [temp];
+  }
   //Defaults
   if (_startAnim === undefined) {
-    //Must Assert Early
-    if (!Array.isArray(_asset)) {
-      throw new Error("Bad _asset in Animator", _asset);
-    }
     _startAnim = _asset[0].name;
   }
   if (_scale === undefined) {
@@ -877,6 +969,7 @@ function Animator(_asset,_startAnim,_scale,_offsetVector2D) {
   this.offsetVector2D = _offsetVector2D;
   //Helper function
   this.addAnimation = function(_animation) {
+    //Given an object that implements the animation structure, add that to the animator animation list.
     //Asserts
     if (typeof _animation.name !== "string") {
       throw new Error("Bad name arg _name in SpriteRenderer addAnimation", _name);
@@ -884,7 +977,6 @@ function Animator(_asset,_startAnim,_scale,_offsetVector2D) {
     if (!Array.isArray(_animation.anim)) {
       throw new Error("Bad arnimation arg _anim in SpriteRenderer addAnimation", _anim);
     }
-
     //Implementation
     let textureArray = [];
     for (let i = 0; i < _animation.anim.length; i++) {
@@ -892,23 +984,13 @@ function Animator(_asset,_startAnim,_scale,_offsetVector2D) {
     }
     this.animations.push(new Tuple(_animation.name,new PIXI.extras.AnimatedSprite(textureArray)));
   }
-  for (let i = 0; i < _asset.length; i++) {
-    this.addAnimation(_asset[i]);
-  }
+  //Add each animation given in _asset
+
   //Member Functions
-  this.setAnimation = function(_animName) {
-    for (let i = 0; i < this.animations.length; i++) {
-      if (_animName === this.animations[i].x) {
-        this.animation = this.animations[i].y;
-        return;
-      }
-    }
-    throw new Error("No found _animName for Animator setAnimation", _animName, this.component.entity);
-  }
-  this.setAnimation(_startAnim);
+
   Game.stage.addChild(this.animation);
   this.animation.play();
-  this.animation.animationSpeed = 2;
+
   this.component = new Component(
     function() {
       this.animation.x = this.component.position.vector2D.x + this.offsetVector2D.x;

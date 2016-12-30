@@ -38,8 +38,7 @@ function arena() {
 function player() {
   let name = "player";
   let position = new Vector2D(Game.renderer.width/2-16,Game.renderer.height/2-16);
-  let spriteR = new SpriteRenderer("KindleConceptAI.png",2);
-  let anim = new Animator([new Animation("test",["KindleConceptAI_Animation 1_0.png","KindleConceptAI_Animation 1_1.png"])]);
+  let spriteR = new SpriteRenderer("player",2);
   let playerController = new Script(
       function(entity) {
       },
@@ -50,9 +49,10 @@ function player() {
         if (btn('r')) entity.position.vector2D.x += 100*deltaTime();
         entity.position.rotation += .05;
         spriteR.setPivot("center");
+        spriteR.offsetVector2D.y = 100;
       }
     )
-  return new Entity(name,position,[playerController,spriteR,anim])
+  return new Entity(name,position,[playerController,spriteR])
 }
 
 function musicPlayer() {
@@ -74,27 +74,19 @@ function musicPlayer() {
 function animationTest() {
   let name = "animationTest";
   let position = new Vector2D(0,0);
-  let anim = new SpriteRenderer()
-  let musicManager = new Script(
-    function(entity) {
-      if (!audio.isPlaying()) {
-        audio.setLooping(true);
-        audio.setVolume(0);
-        audio.play();
-      }
-    }
-  )
-  return new Entity(name,position,[audio,musicManager]);
+  //let anim = new Animator(new Animation("kindle",["kindle"]));
+  return new Entity(name,position);
 }
 
-var EntityList = {
-  titleText : new titleText(),
-  arena : new arena(),
-  player : new player(),
-  musicPlayer : new musicPlayer()
-}
+EntityList = {};
 function game_init() {
-
+  EntityList = {
+    titleText : new titleText(),
+    arena : new arena(),
+    player : new player(),
+    musicPlayer : new musicPlayer(),
+    animation : new animationTest()
+  }
 }
 
 function game_update() {
