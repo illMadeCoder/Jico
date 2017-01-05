@@ -58,7 +58,7 @@ function player() {
 function musicPlayer() {
   let name = "musicPlayer";
   let position = new Vector2D(0,0);
-  let audio = new AudioPlayer("Sun Rising Arp 120bpm.wav");
+  let audio = new AudioPlayer("donkey",.5);
   let musicManager = new Script(
     function(entity) {
       if (!audio.isPlaying()) {
@@ -74,8 +74,33 @@ function musicPlayer() {
 function animationTest() {
   let name = "animationTest";
   let position = new Vector2D(0,0);
-  //let anim = new Animator(new Animation("kindle",["kindle"]));
-  return new Entity(name,position);
+  let comps = []
+  for (let i = 0; i < 32; i++) {
+    for (let j = 0; j < 32; j++) {
+      let anim = new Animator("kindle",1,new Vector2D(i*64,j*64));
+      comps.push(anim);
+    }
+  }
+  let move = new Script(
+    function(entity) {
+      if (btn('r')) entity.position.vector2D.x += 100*deltaTime();
+      if (btn('l')) entity.position.vector2D.x -= 100*deltaTime();
+    }
+  )
+  comps.push(move);
+  return new Entity(name,position,comps);
+}
+function coll() {
+  let name = "collTest";
+  let position = new Vector2D(0,0);
+  let collider = new RectCollider(1,1, new Vector2D(0,0));
+  let script = new Script(
+    function() {},
+    function() {},
+    function() {},
+    function(entity,coll) {}
+  )
+  return new Entity(name,position,[collider,script]);
 }
 
 EntityList = {};
@@ -85,10 +110,15 @@ function game_init() {
     arena : new arena(),
     player : new player(),
     musicPlayer : new musicPlayer(),
+    collTest : new coll(),
+    collTesto : new coll(),
     animation : new animationTest()
   }
 }
 
 function game_update() {
-
+  EntityList.collTest.position.vector2D.x += 1;
+}
+function load_screen() {
+  
 }

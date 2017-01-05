@@ -1,11 +1,34 @@
-assets = {
-  {"sprite":[
-    {"ID":"IDValue", "FilePath":"FilePathValue"}
-  ]}
-  {"animations":[
-    {"ID":"IDValue", "FilePath":"FilePathValue"}
-  ]}
-  {"audio":[
-    {"ID":"IDValue", "FilePath":"FilePathValue"}
-  ]}
+{
+  "assets" : {
+    "Audio" : [
+      {
+        "ID" : "donkey",
+        "FilePath" : "Donkey Kong Country 2 - Stickerbush Symphony.mp3"
+      }
+    ],
+    "Sprite" : [
+          {
+            "ID" : "bunny",
+            "FilePath" : "bunny.png"
+          },
+          {
+            "ID" : "kindle",
+            "FilePath" : "KindleConceptAI.png"
+          },
+          {
+            "ID" : "player",
+            "FilePath" : "player.png"
+          }
+        ],
+    "Animation" : [
+      {
+        "ID" : "texture",
+        "FilePath" : "textures.json"
+      },
+      {
+        "ID" : "kindle",
+        "FilePath" : "kindle.json"
+      }
+    ]
+  }
 }

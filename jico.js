@@ -4,77 +4,6 @@
 //By Jesse Bergerstock
 //November 2016
 
-//example json until parser is made.
-json = {
-  assets : {
-    Audio : [],
-    Sprite : [
-          {
-            ID : "bunny",
-            FilePath : "bunny.png"
-          },
-          {
-            ID : "kindle",
-            FilePath : "KindleConceptAI.png"
-          },
-          {
-            ID : "player",
-            FilePath : "player.png"
-          }
-        ],
-    Animation : [
-      {
-        ID : "texture",
-        FilePath : "textures.json"
-      }
-    ]
-  }
-}
-
-Loader = (function() {
-  this.isLoaded = false;
-  this.spritesLoaded = false;
-  this.animationsLoaded = false;
-  this.audioSourceLoaded = false;
-  this.loadIn = function(_loadType) {
-    this[_loadType] = true;
-    if (this.spritesLoaded == true && this.animationsLoaded == true && this.audioSourceLoaded == true) {
-      Loader.isLoaded = true;
-      Game.startGame();
-    }
-  }
-  //Load Sprites
-  this.spriteLoader = new PIXI.loaders.Loader();
-  this.spriteArray = json.assets.Sprite;
-  for (let i = 0; i < this.spriteArray.length; i++) {
-    this.spriteLoader.add(this.spriteArray[i].ID,"Images/" + this.spriteArray[i].FilePath);
-  }
-  this.spriteLoader.load(function () {this.loadIn("spritesLoaded")}.bind(this));
-
-  this.SpriteAssetByID = function(_assetID) {
-    if (typeof _assetID !== "string") {
-      throw new Error("Bad arg _assetID in Loader's SpriteAssetByID");
-    }
-    return this.spriteLoader.resources[_assetID].texture;
-  }
-  //Load Animations
-  this.animationLoader = new PIXI.loaders.Loader();
-  this.animationArray = json.assets.Animation;
-  for (let i = 0; i < this.animationArray.length; i++) {
-    this.animationLoader.add(this.animationArray[i].ID,"Animations/" + this.animationArray[i].FilePath);
-  }
-  this.animationLoader.load(function () {this.loadIn("animationsLoaded");console.log(this.animationLoader.resources["texture"])})
-
-  this.AnimationSource = function() {
-    return this;
-  }
-  //Load AudioSource
-  this.loadIn("audioSourceLoaded");
-  this.AudioSource = function(_assetID) {}
-  return this;
-
-})();
-
 
 //Enumorate Color Codes
 //Pico-8 Color Palette
@@ -243,21 +172,6 @@ function Tuple(_x,_y) {
   this.y = _y;
   return this;
 }
-
-function Animation(_name,_anim) {
-  //Asserts
-  if (typeof _name !== "string") {
-    throw new Error("Bad Animation arg _name, not filepath",_name);
-  }
-  if (!Array.isArray(_anim)) {
-    throw new Error("Bad Animation arg _anim, not array", _anim);
-  }
-  //Implementation
-  //Member Variables
-  this.name = _name;
-  this.anim = _anim;
-  return this;
-}
 //END DATA STRUCTURES
 
 //BEGIN GAME ENGINE
@@ -287,9 +201,33 @@ var Game = (function () {
   this.totalTimeS = 0;
   this.lastTimeMS = Date.now();
   this.frameCounter = 0;
+  //Collision Cache
+  this.collisionPool = [];
 
   this.initialized = false;
   //Private Methods
+  this.collisionDetection = function() {
+
+    for (let i = 0; i < Game.collisionPool.length; i++) {
+      let collAE = Game.collisionPool[i].x;
+      let collA = Game.collisionPool[i].y;
+      for (let j = 0; j < Game.collisionPool.length; j++) {
+        let collBE = Game.collisionPool[j].x;
+        let collB = Game.collisionPool[j].y;
+        if (collAE !== collBE) {
+          if (collA.x <= collB.y + collB.width &&
+            collA.x + collA.width >= collB.x &&
+            collA.y <= collB.y + collB.height &&
+            collA.height + collA.y >= collB.y) {
+              let scripts = collAE.getComponents(Script);
+              for (let i = 0; i < scripts.length; i++) {
+                scripts[i].collision(collAE,collBE);
+              }
+            }
+        }
+      }
+    }
+  }
   this.updateEntityPool = function() {
     let updateFunc = function(_entity) {
       //Asserts
@@ -312,6 +250,7 @@ var Game = (function () {
     this.totalTimeS += this.deltaTimeMS/1000;
     //Update Functions
     game_update(); //Call Scripting Environment's planned game_update function.
+    this.collisionDetection();
     this.updateEntityPool();
     //Rendering Functions
     this.renderer.render(this.stage);
@@ -320,6 +259,24 @@ var Game = (function () {
     this.lastTimeMS = Date.now()
     this.graphics.clear()
   }.bind(this)
+
+  this.loadingScreen = function() {
+    if (this.Loader.isLoaded == false) {
+      requestAnimationFrame(this.loadingScreen);
+      if (this.loadText === undefined) {
+        console.log("Loading");
+        this.loadText = new PIXI.Text("Loading",{align : "left", fontSize : 26, fontFamily : "Impact", fill : Color.blue, align : "right"})
+        this.stage.addChild(this.loadText);
+      }
+      this.renderer.render(this.stage);
+    }
+    else {
+      this.stage.removeChild(this.loadText);
+      this.loadText.destroy();
+      console.log("Loading Complete");
+    }
+  }.bind(this);
+
   this.setWidth = function(_width) {
     this.renderer.width = _width;
   }
@@ -329,7 +286,7 @@ var Game = (function () {
   this.setHeight = function(_height) {
     this.renderer.height = _height;
   }
-  this.getHieght = function() {
+  this.getHeight = function() {
     return this.renderer.height;
   }
   this.setBackground = function(_color) {
@@ -342,6 +299,94 @@ var Game = (function () {
     //Get color of html canvas which holds game in its Color enum
     return this.renderer.backgroundColor;
   }.bind(this);
+
+  //!LOADER
+  this.Loader = (function() {
+    this.isLoaded = false;
+    this.spritesLoaded = false;
+    this.animationsLoaded = false;
+    this.audioSourceLoaded = false;
+    this.loadIn = function(_loadType) {
+      this[_loadType] = true;
+      if (this.spritesLoaded == true && this.animationsLoaded == true && this.audioSourceLoaded == true) {
+        this.isLoaded = true;
+        Game.startGame();
+      }
+    }
+    //Load AssetMap
+    this.assetMap = null;
+    this.loadJSON = function(err, data) {
+      this.assetMap = data;
+      this.loadSprites(this.assetMap);
+      this.loadAnimations(this.assetMap);
+      this.loadAudio(this.assetMap);
+    }
+    let url = "/assets_ID.json";
+    let callback = this.loadJSON;
+    var xhr = new XMLHttpRequest();
+    xhr.open("get", url, true);
+    xhr.responseType = "json";
+    xhr.onload = function() {
+      var status = xhr.status;
+      if (status == 200) {
+        callback(null, xhr.response);
+      } else {
+        callback(status);
+      }
+    };
+    xhr.send();
+
+    //Load Sprites
+    this.loadSprites = function(json) {
+      this.spriteLoader = new PIXI.loaders.Loader();
+      this.spriteArray = json.assets.Sprite;
+      for (let i = 0; i < this.spriteArray.length; i++) {
+        this.spriteLoader.add(this.spriteArray[i].ID,"Images/" + this.spriteArray[i].FilePath);
+      }
+      this.spriteLoader.load(function () {this.loadIn("spritesLoaded")});
+    }
+
+    this.SpriteByID = function(_assetID) {
+      if (typeof _assetID !== "string") {
+        throw new Error("Bad arg _assetID in Loader's SpriteByID");
+      }
+      return this.spriteLoader.resources[_assetID].texture;
+    }
+    //Load Animations
+    this.loadAnimations = function(json) {
+      this.animationLoader = new PIXI.loaders.Loader();
+      this.animationArray = json.assets.Animation;
+      for (let i = 0; i < this.animationArray.length; i++) {
+        this.animationLoader.add(this.animationArray[i].ID,"Animations/" + this.animationArray[i].FilePath);
+      }
+      this.animationLoader.load(function () {this.loadIn("animationsLoaded");})
+    }
+    this.AnimationByID = function(_assetID) {
+      if (typeof _assetID !== "string") {
+        throw new Error("Bad arg _assetID in Loader's AnimationByID");
+      }
+      let ret = [];
+      for (variable in this.animationLoader.resources[_assetID].textures) {
+        ret.push(this.animationLoader.resources[_assetID].textures[variable]);
+      }
+      return ret;
+    }
+    //Load AudioSource
+    this.loadAudio = function(json) {
+      this.loadIn("audioSourceLoaded");
+      this.audioLoader = (function() {
+        for (let i = 0; i < json.assets.Audio.length; i++) {
+          this[json.assets.Audio[i].ID] = json.assets.Audio[i].FilePath;
+        }
+        return this;
+      })();
+    }
+    this.AudioByID = function(_assetID) {
+      return new Howl({src : "Music/" + audioLoader[_assetID]});
+    }
+    return this;
+  })();
+  this.loadingScreen();
   return this;
 })();
 //END GAME ENGINE
@@ -443,6 +488,10 @@ function Entity(_ID,_positionVector2D,_components,_properties,_tag) {
     //For each component associated with this entity, call on that components apply function.
     //Meant to be used each frame.
     for (i=0; i < entity.components.length; i++) {
+      if (entity.components[i].component.initialized == false) {
+        entity.components[i].component.init();
+        entity.components[i].component.initialized = true;
+      }
       entity.components[i].component.update();
     }
   }
@@ -496,7 +545,7 @@ function Entity(_ID,_positionVector2D,_components,_properties,_tag) {
   return this;
 }
 //Abstract Type Component
-function Component(_update,_unStage,_destroy) {
+function Component(_init,_update,_unStage,_destroy) {
   /*
   The Component type is a set of functions which allows for
   a generic interface with each component. In particular,
@@ -508,6 +557,9 @@ function Component(_update,_unStage,_destroy) {
   to its associated entity and position.
   */
   //Defaults
+  if (_init === undefined) {
+    _init = function() {};
+  }
   if (_update === undefined) {
     _update = function() {};
   }
@@ -518,6 +570,9 @@ function Component(_update,_unStage,_destroy) {
     _destroy = function () {};
   }
   //Asserts
+  if (typeof _init !== "function") {
+    throw new Error("Bad component init function", _init);
+  }
   if (typeof _update !== "function") {
     throw new Error("Bad component update function", _update);
   }
@@ -530,7 +585,9 @@ function Component(_update,_unStage,_destroy) {
   //Implementation
   this.entity = null; //Will be assigned during entity construction.
   this.position = null; //Will be assigned during entity construction.
+  this.initialized = false;
   //Interface
+  this.init = _init;
   this.update = _update;
   this.destroy = _destroy;
   this.unStage = _unStage;
@@ -580,14 +637,10 @@ function Position(_vector2D,_r) {
     return this.rotation;
   }
 
-  this.component = new Component(
-    function() {},
-    function() {},
-    function() {}
-  );
+  this.component = new Component();
 }
 //Implements Component Object
-function Script(_initFunc, _updateFunc, _destroyFunc) {
+function Script(_initFunc, _updateFunc, _destroyFunc, _collisionFunc) {
   /*
   The Script Component describes an entity's behaviour within a game. Where
   other components act as data containers with a set of methods to interface,
@@ -609,6 +662,9 @@ function Script(_initFunc, _updateFunc, _destroyFunc) {
   if (_destroyFunc == undefined) {
     _destroyFunc = function(){};
   }
+  if (_collisionFunc == undefined) {
+    _collisionFunc = function(){};
+  }
   //Asserts
   if (typeof _initFunc != "function") {
     throw new Error("_initFunc of Script Component is not function", _initFunc);
@@ -619,12 +675,17 @@ function Script(_initFunc, _updateFunc, _destroyFunc) {
   if (typeof _destroyFunc == null || typeof _destroyFunc !== "function") {
     throw new Error("_destroyFunc of Script Component is not function", _destroyFunc);
   }
+  if (typeof _collisionFunc == null || typeof _collisionFunc !== "function") {
+    throw new Error("_collisionFunc of Script Component is not function", _collisionFunc);
+  }
   //Implementation
   this.init = _initFunc;
   this.update = _updateFunc;
   this.destroy = _destroyFunc;
+  this.collision = _collisionFunc;
   this.initialized = false;
   this.component = new Component(
+    function() {},
     function() {
       if (!this.initialized) {
         this.init(this.component.entity);
@@ -774,6 +835,9 @@ function Text(_str,_color,_offsetVector2D,_font) {
   }
 
   this.component = new Component(
+    function () {
+      Game.stage.addChild(this.text)
+    }.bind(this),
     function() {
       this.text.x = this.component.position.vector2D.x + this.offsetVector2D.x;
       this.text.y = this.component.position.vector2D.y + this.offsetVector2D.y;
@@ -786,7 +850,6 @@ function Text(_str,_color,_offsetVector2D,_font) {
       this.text.destroy();
     }.bind(this)
   )
-  Game.stage.addChild(this.text);
   return this;
 }
 //Implements Component Object
@@ -813,7 +876,7 @@ function SpriteRenderer(_asset,_scale,_offsetVector2D) {
   if (_offsetVector2D.constructor !== Vector2D) {
     throw new Error("Bad _offsetVector2D in SpriteRenderer", _offsetVector2D);
   }
-  this.sprite = new PIXI.Sprite.from(Loader.SpriteAssetByID(_asset));
+  this.sprite = new PIXI.Sprite.from(Game.Loader.SpriteByID(_asset));
   this.sprite.scale.x = _scale;
   this.sprite.scale.y = _scale;
   this.offsetVector2D = _offsetVector2D;
@@ -913,6 +976,9 @@ function SpriteRenderer(_asset,_scale,_offsetVector2D) {
 
   this.component = new Component(
     function() {
+      Game.stage.addChild(this.sprite);
+    }.bind(this),
+    function() {
       this.sprite.position.x = this.component.position.vector2D.x + this.offsetVector2D.x;
       this.sprite.position.y = this.component.position.vector2D.y + this.offsetVector2D.y;
       this.sprite.rotation = this.component.position.rotation;
@@ -924,11 +990,10 @@ function SpriteRenderer(_asset,_scale,_offsetVector2D) {
       this.sprite.destroy();
     }.bind(this)
     );
-  Game.stage.addChild(this.sprite); //Setup entity to be rendered
   return this;
 }
 
-function Animator(_asset,_startAnim,_scale,_offsetVector2D) {
+function Animator(_assetID,_scale,_offsetVector2D) {
   /*
   The Animator is defined as an entity component which encapsulates the
   PIXI.js library to provide behaviour associated with graphical sprite animations.
@@ -938,15 +1003,7 @@ function Animator(_asset,_startAnim,_scale,_offsetVector2D) {
   using their name as a locator.
   */
   //Fix single animation to array of single animation
-
-  if (!Array.isArray(_asset)) {
-    let temp = _asset;
-    _asset = [temp];
-  }
   //Defaults
-  if (_startAnim === undefined) {
-    _startAnim = _asset[0].name;
-  }
   if (_scale === undefined) {
     _scale = 1;
   }
@@ -954,9 +1011,6 @@ function Animator(_asset,_startAnim,_scale,_offsetVector2D) {
     _offsetVector2D = new Vector2D(0,0);
   }
   //Asserts
-  if (typeof _startAnim !== "string") {
-    throw new Error("Bad _startState in Animator", _startState);
-  }
   if (typeof _scale !== "number") {
     throw new Error("Bad _scale in Animator", _scale);
   }
@@ -964,42 +1018,37 @@ function Animator(_asset,_startAnim,_scale,_offsetVector2D) {
     throw new Error("Bad _offsetVector2D in Animator", _offsetVector2D);
   }
   //Member Variables
-  this.animations = [];
-  this.animation = null;
+  this.animation = new Tuple(_assetID,new PIXI.extras.AnimatedSprite(Game.Loader.AnimationByID(_assetID)));
   this.offsetVector2D = _offsetVector2D;
-  //Helper function
-  this.addAnimation = function(_animation) {
-    //Given an object that implements the animation structure, add that to the animator animation list.
-    //Asserts
-    if (typeof _animation.name !== "string") {
-      throw new Error("Bad name arg _name in SpriteRenderer addAnimation", _name);
-    }
-    if (!Array.isArray(_animation.anim)) {
-      throw new Error("Bad arnimation arg _anim in SpriteRenderer addAnimation", _anim);
-    }
-    //Implementation
-    let textureArray = [];
-    for (let i = 0; i < _animation.anim.length; i++) {
-      textureArray[i] = PIXI.Texture.fromImage("Animations/" + _animation.anim[i]);
-    }
-    this.animations.push(new Tuple(_animation.name,new PIXI.extras.AnimatedSprite(textureArray)));
-  }
-  //Add each animation given in _asset
-
   //Member Functions
-
-  Game.stage.addChild(this.animation);
-  this.animation.play();
+  this.setAnimationSpeed = function(_speed) {
+    this.animation.y.animtionSpeed = _speed;
+  }
+  this.getAnimationSpeed = function() {
+    return this.animation.y.animationSpeed;
+  }
+  this.setAnimation = function(_assetID) {
+    this.animation.destroy();
+    this.animation = new Tuple(_assetID,new PIXI.extras.AnimatedSprite(Game.Loader.AnimationByID(_assetID)));
+  }
+  this.getAnimation = function() {
+    return this.animation.x;
+  }
 
   this.component = new Component(
     function() {
-      this.animation.x = this.component.position.vector2D.x + this.offsetVector2D.x;
-      this.animation.y = this.component.position.vector2D.y + this.offsetVector2D.y;
+      Game.stage.addChild(this.animation.y);
+      this.animation.y.play();
+    }.bind(this),
+    function() {
+      this.animation.y.x = this.component.position.vector2D.x + this.offsetVector2D.x;
+      this.animation.y.y = this.component.position.vector2D.y + this.offsetVector2D.y;
       this.animation.rotation = this.component.position.rotation;
     }.bind(this),
     function() {},
     function() {}
   );
+  this.animation.y.animationSpeed = .05;
   return this;
 }
 //Implements Component Object
@@ -1028,12 +1077,14 @@ function AudioPlayer(_audioFileName,_volume,_loop,_play) {
   }
   //Implementation
   //Member Variables
-  this.sound = new Howl({
-    src : ["Music/" + _audioFileName],
-    volume : _volume,
-    loop : _loop,
-    autoplay : _play
-  });
+  this.sound = Game.Loader.AudioByID(_audioFileName);
+  this.sound.volume(_volume);
+  this.sound.loop(_loop);
+  if (_play) {
+    this.sound.play();
+  } else {
+    this.sound.stop();
+  }
   //Member Functions
   this.play = function() {
     this.sound.play();
@@ -1081,6 +1132,7 @@ function AudioPlayer(_audioFileName,_volume,_loop,_play) {
   this.component = new Component(
   function() {},
   function() {},
+  function() {},
   function() {
     this.sound.stop();
     this.sound.unload();
@@ -1088,8 +1140,20 @@ function AudioPlayer(_audioFileName,_volume,_loop,_play) {
   );
 }
 //Implements Component Object
-function BoxCollider() {
-  this.component = new Component();
+function RectCollider(_width,_height,_offsetVector2D) {
+  this.rect = {x : 0, y : 0, width : _width, height : _height, offsetVector2D : _offsetVector2D};
+
+  this.component = new Component(
+    function() {
+      Game.collisionPool.push(new Tuple(this.component.entity,this.rect))
+    }.bind(this),
+    function() {
+      this.rect.x = this.component.entity.position.vector2D.x + this.rect.offsetVector2D.x;
+      this.rect.y = this.component.entity.position.vector2D.y + this.rect.offsetVector2D.y;
+    }.bind(this),
+    function() {},
+    function() {}
+  );
 }
 //END ENTITY COMPONENT SYSTEM
 

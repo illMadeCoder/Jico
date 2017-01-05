@@ -1,0 +1,39 @@
+{"frames": {
+
+"KindleConceptAI_Animation 1_0.png":
+{
+	"frame": {"x":0,"y":0,"w":64,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":64,"h":64},
+	"sourceSize": {"w":64,"h":64},
+	"pivot": {"x":0.5,"y":0.5}
+},
+"KindleConceptAI_Animation 1_1.png":
+{
+	"frame": {"x":64,"y":0,"w":64,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":64,"h":64},
+	"sourceSize": {"w":64,"h":64},
+	"pivot": {"x":0.5,"y":0.5}
+},
+"KindleConceptAI_Animation 1_2.png":
+{
+	"frame": {"x":128,"y":0,"w":64,"h":64},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":64,"h":64},
+	"sourceSize": {"w":64,"h":64},
+	"pivot": {"x":0.5,"y":0.5}
+}},
+"meta": {
+	"app": "http://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "kindle.png",
+	"format": "RGBA8888",
+	"size": {"w":192,"h":64},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:3d480662e30a0977e3331c1575a7b8ee:fd696cad11b60697a632db6deae7991e:f39d695a4c62c9d106f78e7f62f500e0$"
+}
+}
