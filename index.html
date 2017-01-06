@@ -1,15 +1,16 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>Make a sprite from an image</title>
+<title>Game</title>
 <body>
 <script src="pixi.js"></script>
 <script src="howler.js"></script>
 <script src="jico.js"></script>
-<script src="jico_physics.js"></script>
 <script src="script.js"></script>
 <script>
   if (Game.Loader.isLoaded) {
     Game.startGame();
+  } else {
+    Game.loadingScreen();
   }
 </script>
 </body

@@ -1,10 +1,9 @@
-
 //jico.js A Web Based Game Engine
 //jico depends on Pixi.js, and Howler.js to operate.
 //By Jesse Bergerstock
-//November 2016
+//Started in November of 2016
 
-
+/////////////////////////////////////////////////////////////
 //Enumorate Color Codes
 //Pico-8 Color Palette
 Color = {};
@@ -138,20 +137,26 @@ function Vector2D(_x,_y) {
   */
   //Asserts
   if (typeof _x !== "number") {
-    throw new Error("Bad Vector2D arg x, not number",_x);
+    throw new Error("Bad Vector2D arg _x, not number",_x);
   }
   if (typeof _y !== "number") {
-    throw new Error("Bad Vector2D arg x, not number",_y);
+    throw new Error("Bad Vector2D arg _y, not number",_y);
   }
   //Implementation
   //Member Variables
   this.x = _x;
   this.y = _y;
   //Member Functions
-  this.magnitude = function () {
+  this.magnitude = function() {
     return Math.sqrt(Math.pow(this.x,2) + Math.pow(this.y,2));
   }
-  this.set = function (_vector2D) {
+  this.set = function(_x,_y) {
+    if (typeof _x !== "number") {
+      throw new Error("Bad Vector2D arg _x, not number",_x);
+    }
+    if (typeof _y !== "number") {
+      throw new Error("Bad Vector2D arg _y, not number",_y);
+    }
     this.x = _vector2D.x;
     this.y = _vector2D.y;
   }
@@ -215,13 +220,13 @@ var Game = (function () {
         let collBE = Game.collisionPool[j].x;
         let collB = Game.collisionPool[j].y;
         if (collAE !== collBE) {
-          if (collA.x <= collB.y + collB.width &&
+          if (collA.x <= collB.x + collB.width &&
             collA.x + collA.width >= collB.x &&
             collA.y <= collB.y + collB.height &&
             collA.height + collA.y >= collB.y) {
               let scripts = collAE.getComponents(Script);
               for (let i = 0; i < scripts.length; i++) {
-                scripts[i].collision(collAE,collBE);
+                scripts[i].collision(collA,collB);
               }
             }
         }
@@ -306,8 +311,7 @@ var Game = (function () {
     this.spritesLoaded = false;
     this.animationsLoaded = false;
     this.audioSourceLoaded = false;
-    this.loadIn = function(_loadType) {
-      this[_loadType] = true;
+    this.loadIn = function() {
       if (this.spritesLoaded == true && this.animationsLoaded == true && this.audioSourceLoaded == true) {
         this.isLoaded = true;
         Game.startGame();
@@ -321,7 +325,7 @@ var Game = (function () {
       this.loadAnimations(this.assetMap);
       this.loadAudio(this.assetMap);
     }
-    let url = "/assets_ID.json";
+    let url = "/asset_map.json";
     let callback = this.loadJSON;
     var xhr = new XMLHttpRequest();
     xhr.open("get", url, true);
@@ -343,7 +347,7 @@ var Game = (function () {
       for (let i = 0; i < this.spriteArray.length; i++) {
         this.spriteLoader.add(this.spriteArray[i].ID,"Images/" + this.spriteArray[i].FilePath);
       }
-      this.spriteLoader.load(function () {this.loadIn("spritesLoaded")});
+      this.spriteLoader.load(function () {this.spritesLoaded = true; this.loadIn();});
     }
 
     this.SpriteByID = function(_assetID) {
@@ -359,7 +363,7 @@ var Game = (function () {
       for (let i = 0; i < this.animationArray.length; i++) {
         this.animationLoader.add(this.animationArray[i].ID,"Animations/" + this.animationArray[i].FilePath);
       }
-      this.animationLoader.load(function () {this.loadIn("animationsLoaded");})
+      this.animationLoader.load(function () {this.animationsLoaded = true; this.loadIn();})
     }
     this.AnimationByID = function(_assetID) {
       if (typeof _assetID !== "string") {
@@ -373,7 +377,6 @@ var Game = (function () {
     }
     //Load AudioSource
     this.loadAudio = function(json) {
-      this.loadIn("audioSourceLoaded");
       this.audioLoader = (function() {
         for (let i = 0; i < json.assets.Audio.length; i++) {
           this[json.assets.Audio[i].ID] = json.assets.Audio[i].FilePath;
@@ -381,21 +384,22 @@ var Game = (function () {
         return this;
       })();
     }
+    this.audioSourceLoaded = true;
+    this.loadIn();
     this.AudioByID = function(_assetID) {
-      return new Howl({src : "Music/" + audioLoader[_assetID]});
+      return ("Audio/" + audioLoader[_assetID]);
     }
     return this;
   })();
-  this.loadingScreen();
   return this;
 })();
 //END GAME ENGINE
 
 //BEGIN ENTITY COMPONENT SYSTEM
-function Entity(_ID,_positionVector2D,_components,_properties,_tag) {
+function Entity(_ID,_positionVector2D,_components,_tags,_rotation) {
   /*
   An Entity is a container type for any atoms of the game; from the Titlescreen UI,
-  to the player, to a music manager. An Entity is mostly composed of its components
+  to the player, to an audio manager. An Entity is mostly composed of its components
   which are generic types of content which are necessary to create the total game.
   Content such as: sprites, positions, audio, and physics. An Entity must have an
   ID to identify an object by a name during runtime to either locate it in memory
@@ -410,20 +414,29 @@ function Entity(_ID,_positionVector2D,_components,_properties,_tag) {
 
   Entity will return itself for the use of a script which called it.
   */
-  //Closure
-  let entity = this;
   //Defaults
-  if (_components === undefined)
+  if (_components === undefined) {
     _components = [];
-  if (_properties === undefined)
-    _properties = {};
-  if (_tag === undefined)
-    _tag = [];
+  }
+  if (_tags === undefined) {
+    _tags = [];
+  }
+  if (_rotation === undefined) {
+    _rotation = 0;
+  }
   //Asserts
-  if (typeof _ID !== "string")
+  if (typeof _ID !== "string") {
     throw new Error("Bad Entity ID", _ID);
-  if (_positionVector2D.constructor !== Vector2D)
+  }
+  if (_positionVector2D.constructor !== Vector2D) {
     throw new Error("Bad Entity Position",_positionVector2D,_ID);
+  }
+  if (!Array.isArray(_tags)) {
+    throw new Error();
+  }
+  if (typeof _rotation !== "number") {
+    throw new Error();
+  }
   //Handle common error case where _components are given as a component instead of a list of components
   if (!Array.isArray(_components)) {
     if (_components.component != undefined) {
@@ -431,70 +444,73 @@ function Entity(_ID,_positionVector2D,_components,_properties,_tag) {
       _components = [temp];
     }
   }
-  if (!Array.isArray(_components))
+  if (!Array.isArray(_components)) {
     throw new Error("Bad Entity Components", _ID);
+  }
   //Implementation
   //Properties
   //Member Variables
   this.ID = _ID;
   this.position = new Position(_positionVector2D);
-  this.tag = _tag;
-  this.properties = _properties;
+  this.tags = _tags;
   this.birthTime = Game.totalTimeS;
   this.components = []; //only set components via addComponent
   //Member Functions
   this.addComponent = function(_component) {
     //Method to a component, a component needs a reference to the entity it's associated with.
     //Asserts
-    if (_component.component == undefined)
-      throw new Error("Bad Add Component", _component, "to entity,", entity);
-    if (_component.constructor == Position)
-      throw new Error("Bad Add Component, cannot add multiple position components", entity);
+    if (_component.component == undefined) {
+      throw new Error("Bad Add Component", _component, "to entity,", this);
+    }
+    if (_component.constructor == Position) {
+      throw new Error("Bad Add Component, cannot add multiple position components", this);
+    }
     //Implementation
-    _component.component.entity = entity;
-    _component.component.position = entity.position;
-    entity.components.push(_component);
-  }
+    _component.component.entity = this;
+    _component.component.position = this.position;
+    this.components.push(_component);
+  }.bind(this);
   this.getComponent = function(_constructorType) {
     //Given a constructor type which is the function that constructs a component,
     //Return the first found component of the given constructor type.
     //Asserts
-    if (_constructorType === undefined || typeof _constructorType != "function")
-      throw new Error("Bad constructor type in getComponent", _constructorType, entity);
+    if (typeof _constructorType != "function") {
+      throw new Error("Bad constructor type in getComponent", _constructorType, this);
+    }
     //Implementation
     let ret = null;
-    for (i = 0; i < entity.components.length; i++) {
-      if (_constructorType === entity.components[i].constructor) {
-        ret = entity.components[i];
+    for (i = 0; i < this.components.length; i++) {
+      if (_constructorType === this.components[i].constructor) {
+        ret = this.components[i];
         break;
       }
     }
     return ret;
-  }
+  }.bind(this);
   this.getComponents = function(_constructorType) {
     //Like getComponent, except returns all components of a constructor type in a list.
     //Asserts
-    if (_constructorType === undefined || typeof _constructorType != "function")
-      throw new Error("Bad constructor type in getComponents", _constructorType, entity);
+    if (typeof _constructorType != "function")
+      throw new Error("Bad constructor type in getComponents", _constructorType, this);
     //Implementation
     var ret = []
-    for (i = 0; i < entity.components.length; i++) {
-      if (entity.components[i].constructor === _constructorType)
-          ret.push(entity.components[i]);
+    for (i = 0; i < this.components.length; i++) {
+      if (this.components[i].constructor === _constructorType)
+          ret.push(this.components[i]);
     }
     return ret;
-  }
+  }.bind(this);
   this.updateComponents = function() {
     //For each component associated with this entity, call on that components apply function.
     //Meant to be used each frame.
-    for (i=0; i < entity.components.length; i++) {
-      if (entity.components[i].component.initialized == false) {
-        entity.components[i].component.init();
-        entity.components[i].component.initialized = true;
+    for (i=0; i < this.components.length; i++) {
+      if (this.components[i].component.initialized == false) {
+        this.components[i].component.init();
+        this.components[i].component.initialized = true;
       }
-      entity.components[i].component.update();
+      this.components[i].component.update();
     }
-  }
+  }.bind(this);
   this.getTimeAlive = function() {
     //Return the quantity of time in which this entity has been initialized in seconds.
     return (Game.totalTimeS - this.birthTime);
@@ -502,55 +518,32 @@ function Entity(_ID,_positionVector2D,_components,_properties,_tag) {
   this.stage = function() {
     //Place this object in the entity list,
     //this will mean that all of the entity's component's apply functions will be called each frame.
-    if (this.isStaged(this.node) == true)
-      console.error("Entity already staged", entity);
-    else
-      this.node = Game.entityLinkedList.push(entity);
-  }
-  this.unStage = function() {
-    //Remove this object from the entity list,
-    //This function will leave the entity in tact so it can be used for future purposes.
-    if (this.isStaged(this.node) == false)
-      console.error("Entity already unstaged", entity);
-    for (i = 0; i<entity.components.length; i++) {
-      entity.components[i].component.unStage();
-    }
-    Game.entityLinkedList.remove(this.node);
-    this.node = null;
-  }
-  this.isStaged = function() {
-    //Check to see if a entity has been staged.
-    Game.entityLinkedList.contains(this.node);
-  }
+    this.node = Game.entityLinkedList.push(this);
+  }.bind(this);
   this.compareTag = function(_tag) {
     //Given a tag, see if this entity contains that tag.
     //Asserts
-    if (typeof _tag != "string")
-      throw new Error("Bad Tag in Compare Tag", _tag, entity);
-    for (i = 0; i < entity.tag.length; i++)
-      if (entity.tag[i] == _tag) return true;
-    return false;
-  }
-  this.destroy = function() {
-    //Remove this object and each of its components from memory.
-    for (i = 0; i<entity.components.length; i++) {
-      entity.components[i].component.delete();
+    if (typeof _tag != "string") {
+      throw new Error("Bad Tag in Compare Tag", _tag, this);
     }
-    this.unStage();
-  }
+    for (i = 0; i < this.tag.length; i++) {
+      if (entity.tags[i] == _tag) return true;
+    }
+    return false;
+  }.bind(this);
   //Stage this entity into gamespace
-  this.node = Game.entityLinkedList.push(entity);
+  this.node = Game.entityLinkedList.push(this);
   //Handle given components now that the appropriate methods are defined.
   _components.map(this.addComponent);
   return this;
 }
 //Abstract Type Component
-function Component(_init,_update,_unStage,_destroy) {
+function Component(_init,_update,_destroy) {
   /*
   The Component type is a set of functions which allows for
   a generic interface with each component. In particular,
-  a component must update each frame, a component must be able
-  to unstage, and a component must be able to destroy itself.
+  a component must update each frame, and a component must
+  be able to destroy itself.
 
   Furthermore the component acts as a cashe of relevent
   references for any components to use such as a reference
@@ -563,9 +556,6 @@ function Component(_init,_update,_unStage,_destroy) {
   if (_update === undefined) {
     _update = function() {};
   }
-  if (_unStage === undefined) {
-    _unStage = function () {};
-  }
   if (_destroy === undefined) {
     _destroy = function () {};
   }
@@ -575,9 +565,6 @@ function Component(_init,_update,_unStage,_destroy) {
   }
   if (typeof _update !== "function") {
     throw new Error("Bad component update function", _update);
-  }
-  if (typeof _unStage !== "function") {
-    throw new Error("Bad component unstage function", _unStage);
   }
   if (typeof _destroy !== "function") {
     throw new Error("Bad component destroy function", _destroy);
@@ -590,7 +577,6 @@ function Component(_init,_update,_unStage,_destroy) {
   this.init = _init;
   this.update = _update;
   this.destroy = _destroy;
-  this.unStage = _unStage;
   return this;
 }
 //Implements Component Object
@@ -605,7 +591,12 @@ function Position(_vector2D,_r) {
   object per entity, and an entity must maintain one Position object.
   */
   //Defaults
-  if (_r === undefined) _r = 0;
+  if (_vector2D === undefined) {
+    _vector2D = new Vector2D(0,0);
+  }
+  if (_r === undefined) {
+    _r = 0;
+  }
   //Asserts
   if (_vector2D.constructor !== Vector2D) {
     throw new Error("Bad arguement _vector2D in Position", _vector2D);
@@ -636,11 +627,10 @@ function Position(_vector2D,_r) {
   this.getRotation = function() {
     return this.rotation;
   }
-
   this.component = new Component();
 }
 //Implements Component Object
-function Script(_initFunc, _updateFunc, _destroyFunc, _collisionFunc) {
+function Script(_functionsObject) {
   /*
   The Script Component describes an entity's behaviour within a game. Where
   other components act as data containers with a set of methods to interface,
@@ -652,38 +642,45 @@ function Script(_initFunc, _updateFunc, _destroyFunc, _collisionFunc) {
   the init function that is meant to be called when an object is initialized, and
   an update function which is meant to be called every frame after the intialization.
   */
+  //Parse Functions Object
+  let _updateFunc = _functionsObject.update;
+  let _initFunc = _functionsObject.init;
+  let _destroyFunc = _functionsObject.destroy;
+  let _onCollisionFunc = _functionsObject.onCollision;
+
   //Defaults
-  if (_updateFunc === undefined) {
-    //If the updateFunc has not been defined then only one arg was used
-    //updateFunc is required initfunc is not.
-    _updateFunc = _initFunc;
+  if (_initFunc === undefined) {
     _initFunc = function() {};
+  }
+  if (_updateFunc === undefined) {
+    _updateFunc = function() {};
   }
   if (_destroyFunc == undefined) {
     _destroyFunc = function(){};
   }
-  if (_collisionFunc == undefined) {
-    _collisionFunc = function(){};
+  if (_onCollisionFunc == undefined) {
+    _onCollisionFunc = function(){};
   }
   //Asserts
   if (typeof _initFunc != "function") {
     throw new Error("_initFunc of Script Component is not function", _initFunc);
   }
-  if (typeof _updateFunc === null || typeof _updateFunc !== "function") {
+  if (typeof _updateFunc !== "function") {
     throw new Error("Acceptable _updateFunc required for script component", _updateFunc);
   }
-  if (typeof _destroyFunc == null || typeof _destroyFunc !== "function") {
+  if (typeof _destroyFunc !== "function") {
     throw new Error("_destroyFunc of Script Component is not function", _destroyFunc);
   }
-  if (typeof _collisionFunc == null || typeof _collisionFunc !== "function") {
-    throw new Error("_collisionFunc of Script Component is not function", _collisionFunc);
+  if (typeof _onCollisionFunc !== "function") {
+    throw new Error("_onCollisionFunc of Script Component is not function", _onCollisionFunc);
   }
   //Implementation
   this.init = _initFunc;
   this.update = _updateFunc;
   this.destroy = _destroyFunc;
-  this.collision = _collisionFunc;
+  this.collision = _onCollisionFunc;
   this.initialized = false;
+
   this.component = new Component(
     function() {},
     function() {
@@ -693,7 +690,6 @@ function Script(_initFunc, _updateFunc, _destroyFunc, _collisionFunc) {
       }
       this.update(this.component.entity);
     }.bind(this),
-    function() {},
     function () {
       this.destroy(this.component.entity);
       this.init = null;
@@ -704,98 +700,93 @@ function Script(_initFunc, _updateFunc, _destroyFunc, _collisionFunc) {
   return this;
 }
 //Implements Component Object
-function Text(_str,_color,_offsetVector2D,_font) {
+function Text(_str,_style,_offsetVector2D,_offsetRotation) {
   /*
   The Text Component utilizes PIXI's Text type to create
   persistent text object to display a string as a graphic on the canvas.
 
   The Text Component requires a string to display, a color, a vector to offset its position,
   and a font.
+
+  Variable Setter Getters
+  alpha : number : opacity of the text
+  anchor : number : axis of rotation by percentage
+  height : number : height of the text
+  pivot : number : axis of rotation by pixel
+  rotation : number : sets rotation of text
+  width : number : sets the width of the text
+  style : object : style of object defined by pixi
+
+  Style includes
+  Style parameters use pixi.js
+  http://pixijs.download/release/docs/PIXI.TextStyle.html
   */
   //Defaults
   if (_str === undefined) {
     _str = "";
   }
-  if (_color === undefined) {
-    _color = 0x000000 //Black
+  if (_style === undefined) {
+    _style = {};
   }
   if (_offsetVector2D === undefined) {
     _offsetVector2D = new Vector2D(0,0);
   }
-  if (_font === undefined) {
-    _font = "Impact";
+  if (_offsetRotation === undefined) {
+    _offsetRotation = 0;
   }
   //Asserts
   if (typeof _str !== "string") {
     throw new Error("Bad arg string _str in Text Component", _str);
   }
-  if (typeof _color !== "number") {
-    throw new Error("Bad arg color _color in Text Component", _color);
+  if (typeof _style !== "object") {
+    throw new Error("Bad arg _style in Text Component", _style);
   }
   if (_offsetVector2D.constructor !== Vector2D) {
-    throw new Error("Bad arg offset Vector2D _offsetVector2D in Text Component", _offsetVector2D);
+    throw new Error("Bad arg _offsetVector2D in Text Component", _offsetVector2D);
   }
-  if (typeof _font !== "string") {
-    throw new Error("Bad arg font _font in Text Component", _font);
+  if (typeof _offsetRotation !== "number") {
+    throw new Error("Bad arg _offsetRotation in Text Component", _offsetRotation);
   }
   //Implementation
   //Member Variables
-  this.style = {align : "left", fontSize : 26, fontFamily : _font, fill : _color, align : "right"};
-  this.text = new PIXI.Text(_str, this.style);
+  this.style = _style;
+  this.str = _str;
+  this.text = new PIXI.Text(this.str, this.style);
   this.offsetVector2D = _offsetVector2D;
-
+  this.offsetRotation = _offsetRotation;
   //Member Functions
   this.setText = function(_str) {
     if (typeof _str !== "string") {
       throw new Error("Bad string _font in Text Component", _str, this.component.entity);
     }
+    this.str = _str;
     this.text.setText(_str);
   }
   this.getText = function() {
-    return this.text;
+    return this.str;
   }
   this.clear = function() {
     this.text.setText("");
   }
-  this.setFontSize = function(_fontSize) {
-    if (typeof _fontSize !== "number" || _fontSize < 0) {
-      throw new Error("Bad font size _fontSize in Text setFontSize", _fontSize, this.component.entity);
-    }
-    this.style.fontSize = _fontSize;
-    this.text.setStyle(this.style);
+  this.setAnchor = function(_aX, _aY) {
+    this.text.anchor.x = _aX;
+    this.text.anchor.y = _aY;
   }
-  this.getFontSize = function() {
-    return this.style.fontSize;
+  this.getAnchor = function() {
+    return this.text.anchor;
   }
-  this.setFont = function(_font) {
-    if (typeof _font !== "string") {
-      throw new Error("Bad font _font in Text Component", _font, this.component.entity);
-    }
-    this.style.fontFamily = _font;
-    this.text.setStyle(this.style);
+  this.setAlpha = function(_a) {
+    this.text.alpha = _a;
   }
-  this.getFont = function() {
-    return this.tyle.fontFamily;
+  this.getAlpha = function() {
+    return this.text.alpha;
   }
-  this.setAlign = function(_align) {
-    if (typeof _align !== "string") {
-      throw new Error("Bad align _align in setAlign for Text Component", _align, this.component.entity);
-    }
-    this.style.align = _align;
-    this.text.style = this.style;
+  this.setPivot = function(_pX, _pY) {
+    this.text.pivot.x = _pX;
+    this.text.pivot.y = _pY;
   }
-  this.getAlign = function() {
-    return this.style.align;
-  }
-  this.setColor = function(_color) {
-    if (typeof _color != "number") {
-      throw new Error("Bad color _color for Text Component setColor", _color, this.component.entity);
-    }
-    this.style.fill = _color;
-    this.text.setStyle(this.style);
-  }
-  this.getColor = function() {
-    return this.style.fill;
+  this.getPivot = function() {
+    return this.text.pivot;
   }
   this.setWidth = function(_w) {
     if (typeof _w != "number" || _w <= 0) {
@@ -815,22 +806,31 @@ function Text(_str,_color,_offsetVector2D,_font) {
   this.getHeight = function() {
     return this.text.height;
   }
-  this.setRotation = function(_r) {
+  this.setStyle = function(_style) {
+    if (typeof _style !== "object") {
+      throw new Error("Bad arg _style in Text setStyle", _style);
+    }
+    this.text.setStyle(_style);
+  }
+  this.getStyle = function() {
+    return this.text.style;
+  }
+  this.setOffsetRotation = function(_r) {
     if (typeof _r != "number") {
-      throw new Error("Bad rotation _r for Text Component setRotation", _r, this.component.entity);
+      throw new Error("Bad arg _r for Text Component setOffsetRotation", _r, this.component.entity);
     }
     this.text.rotation = _r;
   }
-  this.getRotation = function() {
+  this.getOffsetRotation = function() {
     return this.text.rotation;
   }
-  this.setOffset = function(_offsetVector2D) {
+  this.setOffsetVector2D = function(_offsetVector2D) {
     if (_offsetVector2D.constructor !== Vector2D) {
-      throw new Error("Bad arg _offsetVector2D in Text setOffset", _offsetVector2D, this.component.entity);
+      throw new Error("Bad arg _offsetVector2D in Text setOffsetVector2D", _offsetVector2D, this.component.entity);
     }
     this.offsetVector2D = _offsetVector2D;
   }
-  this.getOffset = function() {
+  this.getOffsetVector2D = function() {
     return this.offsetVector2D;
   }
 
@@ -841,10 +841,7 @@ function Text(_str,_color,_offsetVector2D,_font) {
     function() {
       this.text.x = this.component.position.vector2D.x + this.offsetVector2D.x;
       this.text.y = this.component.position.vector2D.y + this.offsetVector2D.y;
-      this.text.rotation = this.component.position.rotation;
-    }.bind(this),
-    function() {
-      //!!!Remove Text From Screen But Not Destroy It.
+      this.text.rotation = this.component.position.rotation + this.offsetRotation;
     }.bind(this),
     function() {
       this.text.destroy();
@@ -853,7 +850,7 @@ function Text(_str,_color,_offsetVector2D,_font) {
   return this;
 }
 //Implements Component Object
-function SpriteRenderer(_asset,_scale,_offsetVector2D) {
+function SpriteRenderer(_asset,_scale,_offsetVector2D,_offsetRotation) {
   /*
   The SpriteRenderer is defined as an entity component which encapsulates
   the PIXI.js library to provide behaviour associated with graphical sprites
@@ -866,8 +863,11 @@ function SpriteRenderer(_asset,_scale,_offsetVector2D) {
   if (_offsetVector2D === undefined) {
     _offsetVector2D = new Vector2D(0,0);
   }
+  if (_offsetRotation === undefined) {
+    _offsetRotation = 0;
+  }
   //Asserts
-  if (_asset == null || typeof _asset != "string" || Array.isArray(_asset)) {
+  if (typeof _asset !== "string") {
     throw new Error("Bad _asset in SpriteRenderer", _asset);
   }
   if (typeof _scale !== "number") {
@@ -876,79 +876,71 @@ function SpriteRenderer(_asset,_scale,_offsetVector2D) {
   if (_offsetVector2D.constructor !== Vector2D) {
     throw new Error("Bad _offsetVector2D in SpriteRenderer", _offsetVector2D);
   }
+  if (typeof _offsetRotation !== "number") {
+    throw new Error("Bad _offsetRotation in SpriteRenderer", _offsetRotation);
+  }
+  //Implementation
   this.sprite = new PIXI.Sprite.from(Game.Loader.SpriteByID(_asset));
   this.sprite.scale.x = _scale;
   this.sprite.scale.y = _scale;
   this.offsetVector2D = _offsetVector2D;
-  this.scaleMode = new PIXI.BaseTexture(this.sprite, PIXI.SCALE_MODES.NEAREST, 1);
-  this.sprite.baseTexture = this.scaleMode;
+  this.offsetRotation = _offsetRotation;
+  this.sprite.baseTexture = new PIXI.BaseTexture(this.sprite, PIXI.SCALE_MODES.NEAREST, 1);
   //Member Functions
   //Function which positions pixi sprite type equal to the objects position plus the relative offset
-  this.setScaleX = function(_scale) {
-    if (typeof _scale != "number" || _scale <= 0)
-      throw new Error("Bad Sprite Scale Set", _scale, this.component.entity);
-    this.sprite.scale.x = _scale;
+  this.setAnchor = function(_a) {
+    this.sprite.anchor = _a;
   }
-  this.getScaleX = function() {
-    return this.sprite.scale.x;
+  this.getAnchor = function() {
+    return this.sprite.anchor;
   }
-  this.setScaleY = function(_scale) {
-    if (typeof _scale != "number" || _scale <= 0)
-      throw new Error("Bad Sprite Scale Set", _scale, this.component.entity);
-    this.sprite.scale.y = _scale;
+  this.setScale = function(_sX, _sY) {
+    this.sprite.scale.x = _sX;
+    this.sprite.scale.y = _sY;
   }
-  this.getScaleY = function() {
-    return this.sprite.scale.y;
+  this.getScale = function() {
+    return this.sprite.scale;
   }
-  this.setPivotX = function(_pivotPoint) {
-    if (typeof _pivotPoint != "number")
-      throw new Error("Bad Sprite Scale Set", _pivotPoint, this.component.entity);
-    this.sprite.pivot.x = _pivotPoint;
+  this.setPivot = function(_sX, _sY) {
+    this.sprite.pivot.x = _sX;
+    this.sprite.pivot.y = _sY;
   }
-  this.getPivotX = function() {
-    return this.sprite.pivot.x;
+  this.getPivot = function() {
+    return this.sprite.pivot;
   }
-  this.setPivotY = function(_pivotPoint) {
-    if (typeof _pivotPoint != "number")
-      throw new Error("Bad Sprite Scale Set", _pivotPoint, this.component.entity);
-    this.sprite.pivot.y = _pivotPoint;
-  }
-  this.getPivotY = function() {
-    return this.sprite.pivot.y;
-  }
-  this.setPivot = function(_pivotPoint) {
-    if (typeof _pivotPoint !== "string") {
-      throw new Error("Bad arg _pivotPoint in SpriteRenderer function setPivot, must be string", _pivotPoint, this.component.entity);
+  this.setAxis = function(_axis) {
+    if (typeof _axis !== "string") {
+      throw new Error("Bad arg _axis in SpriteRenderer function setPivot, must be string", _axis, this.component.entity);
     }
-    if (_pivotPoint === "center") {
+    if (_axis === "center") {
       this.sprite.anchor.x = .5;
       this.sprite.anchor.y = .5;
-    } else if (_pivotPoint == "top left") {
-      this.sprite.pivot.x = 0;
-      this.sprite.pivot.y = 0;
-    } else if (_pivotPoint == "top") {
-      this.sprite.pivot.x = this.sprite.width*.5;
-      this.sprite.pivot.y = 0;
-    } else if (_pivotPoint == "top right") {
-      this.sprite.pivot.x = this.sprite.width;
-      this.sprite.pivot.y = 0;
-    } else if (_pivotPoint == "right") {
-      this.sprite.pivot.x = this.sprite.width;
-      this.sprite.pivot.y = this.sprite.height*.5;
-    } else if (_pivotPoint == "bottom right") {
-      this.sprite.pivot.x = this.sprite.width;
-      this.sprite.pivot.y = this.sprite.height;
-    } else if (_pivotPoint == "bottom") {
-      this.sprite.pivot.x = this.sprite.width*.5;
-      this.sprite.pivot.y = this.sprite.height;
-    } else if (_pivotPoint == "bottom left") {
-      this.sprite.pivot.x = 0;
-      this.sprite.pivot.y = this.sprite.height;
-    } else if (_pivotPoint == "left") {
-      this.sprite.pivot.x = 0;
-      this.sprite.pivot.y = this.sprite.height*.5;
+    } else if (_axis == "top left") {
+      this.sprite.anchor.x = 0;
+      this.sprite.anchor.y = 0;
+    } else if (_axis == "top") {
+      this.sprite.anchor.x = .5;
+      this.sprite.anchor.y = 0;
+    } else if (_axis == "top right") {
+      this.sprite.anchor.x = 1;
+      this.sprite.anchor.y = 0;
+    } else if (_axis == "right") {
+      this.sprite.anchor.x = 1;
+      this.sprite.anchor.y = .5;
+    } else if (_axis == "bottom right") {
+      this.sprite.anchor.x = 1;
+      this.sprite.anchor.y = 1;
+    } else if (_axis == "bottom") {
+      this.sprite.anchor.x = .5;
+      this.sprite.anchor.y = 1;
+    } else if (_axis == "bottom left") {
+      this.sprite.anchor.x = 0;
+      this.sprite.anchor.y = 1;
+    } else if (_axis == "left") {
+      this.sprite.anchor.x = 0;
+      this.sprite.anchor.y = .5;
     } else {
-      throw new Error("Bad pivot point _pivotPoint in SpriteRenderer setPivot, needs string", _pivotPoint, this.component.entity)
+      throw new Error("Bad axis _axis in SpriteRenderer setAxis, needs string", _axis, this.component.entity)
     }
   }
   this.getWidth = function() {
@@ -967,8 +959,7 @@ function SpriteRenderer(_asset,_scale,_offsetVector2D) {
     return this.sprite.visible;
   }
   this.setSprite = function(_asset) {
-    this.sprite.destroy();
-    this.sprite = new PIXI.Sprite(PIXI.Texture.fromImage("Images/" + _asset));
+    this.sprite.texture = Game.Loader.SpriteByID(_asset);
   }
   this.getSprite = function() {
     return this.sprite.texture;
@@ -984,16 +975,13 @@ function SpriteRenderer(_asset,_scale,_offsetVector2D) {
       this.sprite.rotation = this.component.position.rotation;
     }.bind(this),
     function() {
-      //!!!Remove Text From Screen But Not Destroy It.
-    }.bind(this),
-    function() {
       this.sprite.destroy();
     }.bind(this)
     );
   return this;
 }
 
-function Animator(_assetID,_scale,_offsetVector2D) {
+function Animator(_assetID,_scale,_offsetVector2D,_offsetRotation) {
   /*
   The Animator is defined as an entity component which encapsulates the
   PIXI.js library to provide behaviour associated with graphical sprite animations.
@@ -1010,6 +998,9 @@ function Animator(_assetID,_scale,_offsetVector2D) {
   if (_offsetVector2D === undefined) {
     _offsetVector2D = new Vector2D(0,0);
   }
+  if (_offsetRotation === undefined) {
+    _offsetRotation = 0;
+  }
   //Asserts
   if (typeof _scale !== "number") {
     throw new Error("Bad _scale in Animator", _scale);
@@ -1017,42 +1008,50 @@ function Animator(_assetID,_scale,_offsetVector2D) {
   if (_offsetVector2D.constructor !== Vector2D) {
     throw new Error("Bad _offsetVector2D in Animator", _offsetVector2D);
   }
+  if (typeof _offsetRotation !== "number") {
+    throw new Error();
+  }
   //Member Variables
-  this.animation = new Tuple(_assetID,new PIXI.extras.AnimatedSprite(Game.Loader.AnimationByID(_assetID)));
+  this.animation = new PIXI.extras.AnimatedSprite(Game.Loader.AnimationByID(_assetID));
   this.offsetVector2D = _offsetVector2D;
+  this.offsetRotation = _offsetRotation;
   //Member Functions
   this.setAnimationSpeed = function(_speed) {
-    this.animation.y.animtionSpeed = _speed;
+    this.animation.animtionSpeed = _speed;
   }
   this.getAnimationSpeed = function() {
-    return this.animation.y.animationSpeed;
+    return this.animation.animationSpeed;
   }
   this.setAnimation = function(_assetID) {
     this.animation.destroy();
-    this.animation = new Tuple(_assetID,new PIXI.extras.AnimatedSprite(Game.Loader.AnimationByID(_assetID)));
+    this.animation = new PIXI.extras.AnimatedSprite(Game.Loader.AnimationByID(_assetID));
   }
   this.getAnimation = function() {
-    return this.animation.x;
+    return this.animation;
+  }
+  this.setRotation = function(_r) {
+    this.offsetRotation = _r;
+  }
+  this.getRotation = function() {
+    return this.offsetRotation;
   }
 
   this.component = new Component(
     function() {
-      Game.stage.addChild(this.animation.y);
-      this.animation.y.play();
+      Game.stage.addChild(this.animation);
+      this.animation.play();
     }.bind(this),
     function() {
-      this.animation.y.x = this.component.position.vector2D.x + this.offsetVector2D.x;
-      this.animation.y.y = this.component.position.vector2D.y + this.offsetVector2D.y;
-      this.animation.rotation = this.component.position.rotation;
+      this.animation.x = this.component.position.vector2D.x + this.offsetVector2D.x;
+      this.animation.y = this.component.position.vector2D.y + this.offsetVector2D.y;
+      this.animation.rotation = this.component.position.rotation + this.offsetRotation;
     }.bind(this),
-    function() {},
     function() {}
   );
-  this.animation.y.animationSpeed = .05;
   return this;
 }
 //Implements Component Object
-function AudioPlayer(_audioFileName,_volume,_loop,_play) {
+function AudioPlayer(_audioFileName,_options) {
   /*
   The AudioPlayer type is defined as an entity component which
   encapsulates the howler.js library to provides common behaviour
@@ -1060,31 +1059,24 @@ function AudioPlayer(_audioFileName,_volume,_loop,_play) {
   loop control, and mute control.
 
   The AudioPlayer requires a valid filename for an audio file located in the Audio folder.
+  --Options
+  https://github.com/goldfire/howler.js#documentation
   */
   //Defaults
-  if (_volume === undefined) {
-    _volume = 1;
-  }
-  if (_play === undefined) {
-    _play = false;
-  }
-  if (_loop === undefined) {
-    _loop = false;
+  if (_options === undefined) {
+    _options = {};
   }
   //Asserts
   if (typeof _audioFileName !== "string") {
     throw new Error("Bad arg _audioFileName in construction of AudioPlayer component", _audioFileName);
   }
+  if (typeof _options !== "object") {
+    throw new Error();
+  }
   //Implementation
   //Member Variables
-  this.sound = Game.Loader.AudioByID(_audioFileName);
-  this.sound.volume(_volume);
-  this.sound.loop(_loop);
-  if (_play) {
-    this.sound.play();
-  } else {
-    this.sound.stop();
-  }
+  _options.src = Game.Loader.AudioByID(_audioFileName);
+  this.sound = new Howl(_options);
   //Member Functions
   this.play = function() {
     this.sound.play();
@@ -1128,9 +1120,16 @@ function AudioPlayer(_audioFileName,_volume,_loop,_play) {
   this.getDuration = function() {
     return this.sound.duration();
   }
-
+  this.setRate = function(_r) {
+    this.sound.rate(_r);
+  }
+  this.getRate = function() {
+    return this.sound.rate();
+  }
+  this.duration = function() {
+    return this.duration();
+  }
   this.component = new Component(
-  function() {},
   function() {},
   function() {},
   function() {
@@ -1141,8 +1140,17 @@ function AudioPlayer(_audioFileName,_volume,_loop,_play) {
 }
 //Implements Component Object
 function RectCollider(_width,_height,_offsetVector2D) {
+  //Defaults
+  if (_offsetVector2D === undefined) {
+    _offsetVector2D = new Vector2D(0,0);
+  }
+  //Asserts
+  if (_offsetVector2D.constructor !== Vector2D) {
+    throw new Error();
+  }
+  //Implementation
   this.rect = {x : 0, y : 0, width : _width, height : _height, offsetVector2D : _offsetVector2D};
-
+  this.draw = false;
   this.component = new Component(
     function() {
       Game.collisionPool.push(new Tuple(this.component.entity,this.rect))
@@ -1150,10 +1158,13 @@ function RectCollider(_width,_height,_offsetVector2D) {
     function() {
       this.rect.x = this.component.entity.position.vector2D.x + this.rect.offsetVector2D.x;
       this.rect.y = this.component.entity.position.vector2D.y + this.rect.offsetVector2D.y;
+      if (this.draw) {
+        rect(this.rect.x,this.rect.y,this.rect.width,this.rect.height,Color.green);
+      }
     }.bind(this),
-    function() {},
     function() {}
   );
+  return this;
 }
 //END ENTITY COMPONENT SYSTEM
 
@@ -1243,8 +1254,8 @@ function line(x0,y0,x1,y1,color) {
   Game.graphics.lineTo(x0+x1,y0+y1);
 }
 function camera(x,y) {
-  Game.stage.position.x = x;
-  Game.stage.position.y = y;
+  Game.stage.position.x = -x;
+  Game.stage.position.y = -y;
 }
 function pset(x,y,color) {
   Game.graphics.lineStyle(2,color);
