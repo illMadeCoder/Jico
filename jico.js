@@ -24,6 +24,48 @@ Color[13] = Color.indigo = 0x83769C;
 Color[14] = Color.pink = 0xFF77A8;
 Color[15] = Color.peach = 0xFFCCAA;
 
+//Useful Functions
+function min(_x,_y) {
+  //Implementation
+  if (_x < _y) {
+    return _x;
+  }
+  else {
+    return _y;
+  }
+}
+function max(_x,_y) {
+  //Implementation
+  if (_x > _y) {
+    return _x;
+  }
+  else {
+    return _y;
+  }
+}
+function inRange(_val,_min,_max) {
+  //Implementation
+  if (_val >= _min && _val <= _max) {
+    return true;
+  }
+}
+function clamp(_val,_min,_max) {
+  //Implementation
+  if (_val <= _min) {
+    return _min
+  } else if (_val >= _max) {
+    return _max;
+  } else {
+    return _val;
+  }
+}
+function degToRad(_val) {
+  return (_val*(Math.PI/180));
+}
+function radToDeg(_val) {
+  return (_val*(180/Math.PI));
+}
+
 //Data Structures
 function DoublyLinkedList() {
   /*
@@ -750,23 +792,22 @@ function Text(_str,_style,_offsetVector2D,_offsetRotation) {
   //Implementation
   //Member Variables
   this.style = _style;
-  this.str = _str;
   this.text = new PIXI.Text(this.str, this.style);
   this.offsetVector2D = _offsetVector2D;
   this.offsetRotation = _offsetRotation;
+  this.canRotate = true;
   //Member Functions
   this.setText = function(_str) {
     if (typeof _str !== "string") {
       throw new Error("Bad string _font in Text Component", _str, this.component.entity);
     }
-    this.str = _str;
-    this.text.setText(_str);
+    this.text = _str;
   }
   this.getText = function() {
     return this.str;
   }
   this.clear = function() {
-    this.text.setText("");
+    this.text = "";
   }
   this.setAnchor = function(_aX, _aY) {
     this.text.anchor.x = _aX;
@@ -841,7 +882,9 @@ function Text(_str,_style,_offsetVector2D,_offsetRotation) {
     function() {
       this.text.x = this.component.position.vector2D.x + this.offsetVector2D.x;
       this.text.y = this.component.position.vector2D.y + this.offsetVector2D.y;
-      this.text.rotation = this.component.position.rotation + this.offsetRotation;
+      if (this.canRotate) {
+        this.text.rotation = this.component.position.rotation + this.offsetRotation;
+      }
     }.bind(this),
     function() {
       this.text.destroy();
@@ -1149,7 +1192,17 @@ function RectCollider(_width,_height,_offsetVector2D) {
     throw new Error();
   }
   //Implementation
-  this.rect = {x : 0, y : 0, width : _width, height : _height, offsetVector2D : _offsetVector2D};
+  this.rect = {
+    x : 0,
+    y : 0,
+    width : _width,
+    height : _height,
+    offsetVector2D : _offsetVector2D,
+    top : function() {return this.y;},
+    bot : function() {return this.y+this.height;},
+    left : function() {return this.x;},
+    right : function() {return this.x+this.width;}
+  },
   this.draw = false;
   this.component = new Component(
     function() {
