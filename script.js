@@ -56,7 +56,7 @@ function ground(_x0,_x1) {
   let collider = new RectCollider(_x1,10);
   let script = new Script({
     update : function() {
-      line(_x0,400,_x1,0,Color.blue);
+      line(_x0,400,_x0+_x1,400,Color.blue);
     }
   });
   return new Entity(name,position,[script,collider]);
@@ -86,6 +86,8 @@ function game_init() {
 
 function game_update() {
 }
-function load_screen() {
-
+function game_loading() {
+  let t = txt("LOADING",{fill : Color.blue},Game.getWidth()/2,Game.getHeight()/2);
+  t.rotation = Game.frameCounter/10;
+  t.x += Game.frameCounter;
 }

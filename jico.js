@@ -65,7 +65,16 @@ function degToRad(_val) {
 function radToDeg(_val) {
   return (_val*(180/Math.PI));
 }
-
+function rectIntersect(_rectA,_rectB) {
+  if (_rectA.x <= _rectB.x + _rectB.width &&
+    _rectA.x + _rectA.width >= _rectB.x &&
+    _rectA.y <= _rectB.y + _rectB.height &&
+    _rectA.height + _rectA.y >= _rectB.y) {
+      return true;
+    } else {
+      return false
+    }
+}
 //Data Structures
 function DoublyLinkedList() {
   /*
@@ -239,6 +248,7 @@ var Game = (function () {
   document.body.appendChild(this.renderer.view);
   this.stage = new PIXI.Container(); //Stage for canvas
   this.graphics = new PIXI.Graphics();
+  this.temp_text = []; //Only meant for short text occurances
   this.stage.addChild(this.graphics);
   PIXI.settings.SCALE_MODE = PIXI.SCALE_MODES.NEAREST;
   //Entity List
@@ -248,29 +258,101 @@ var Game = (function () {
   this.totalTimeS = 0;
   this.lastTimeMS = Date.now();
   this.frameCounter = 0;
+
+  this.clearTempText = function() {
+    for (let i = 0; i < temp_text.length; i++) {
+      temp_text[i].destroy();
+      temp_text.splice(i,1);
+    }
+  }
   //Collision Cache
   this.collisionPool = [];
-
   this.initialized = false;
   //Private Methods
-  this.collisionDetection = function() {
+  this.SpatialHash = (function(Game) {
+    this.cellSize = 100;
+    this.cols = (Game.renderer.height / this.cellSize) + 1;
+    this.rows = (Game.renderer.width / this.cellSize) + 1;
+    this.grid = [];
 
-    for (let i = 0; i < Game.collisionPool.length; i++) {
-      let collAE = Game.collisionPool[i].x;
-      let collA = Game.collisionPool[i].y;
-      for (let j = 0; j < Game.collisionPool.length; j++) {
-        let collBE = Game.collisionPool[j].x;
-        let collB = Game.collisionPool[j].y;
-        if (collAE !== collBE) {
-          if (collA.x <= collB.x + collB.width &&
-            collA.x + collA.width >= collB.x &&
-            collA.y <= collB.y + collB.height &&
-            collA.height + collA.y >= collB.y) {
-              let scripts = collAE.getComponents(Script);
-              for (let i = 0; i < scripts.length; i++) {
-                scripts[i].collision(collA,collB);
-              }
+    this.clear = function() {
+      for (let i = 0; i <= this.cols; i++) {
+        this.grid[i] = [];
+        for (let j = 0; j <= this.rows; j++) {
+          this.grid[i][j] = [];
+        }
+      }
+    }
+    this.resize = function() {
+      this.cols = (Game.renderer.height / this.cellSize) + 1;
+      this.rows = (Game.renderer.width / this.cellSize) + 1;
+      this.clear();
+    }
+    this.addCollider = function(_collider) {
+      let x = Math.floor((_collider.x+Game.stage.x)/this.cellSize);
+      let y = Math.floor((_collider.y+Game.stage.y)/this.cellSize);
+      let xEnd = Math.floor((_collider.x+_collider.width+Game.stage.x)/this.cellSize);
+      let yEnd = Math.floor((_collider.y+_collider.height+Game.stage.y)/this.cellSize);
+      for (let px = x; px <= xEnd; px++) {
+        for (let py = y; py <= yEnd; py++) {
+          if (px <= this.cols &&
+              px >= 0 &&
+              py <= this.rows &&
+              py >= 0) {
+                this.grid[px][py].push(_collider);
             }
+        }
+      }
+    }
+    this.getNear = function(_collider) {
+      let ret = [];
+      let x = Math.floor((_collider.x+Game.stage.x)/this.cellSize);
+      let y = Math.floor((_collider.y+Game.stage.y)/this.cellSize);
+      let xEnd = Math.floor((_collider.x+_collider.width+Game.stage.x)/this.cellSize);
+      let yEnd = Math.floor((_collider.y+_collider.height+Game.stage.y)/this.cellSize);
+      for (let px = x; px <= xEnd; px++) {
+        for (let py = y; py <= yEnd; py++) {
+          if (px <= this.cols &&
+              px >= 0 &&
+              py <= this.rows &&
+              py >= 0) {
+                for (let i = 0; i < this.grid[px][py].length; i++) {
+                  if (this.grid[px][py][i] !== _collider) {
+                    ret.push(this.grid[px][py][i]);
+                  }
+                }
+            }
+        }
+      }
+      return ret;
+    }
+    this.draw = function() {
+      for (let i = 0; i <= this.cols; i++) {
+        for (let j = 0; j <= this.rows; j++) {
+          rect((i*this.cellSize)-Game.stage.x,(j*this.cellSize)-Game.stage.y,this.cellSize,this.cellSize,Color.green);
+        }
+      }
+    };
+    return this;
+  })(this);
+  this.collisionDetection = function() {
+    //Clear Grid
+    Game.SpatialHash.clear();
+    //Populate Grid
+    for (let i = 0; i < Game.collisionPool.length; i++) {
+      Game.SpatialHash.addCollider(Game.collisionPool[i]);
+    }
+    //For each collision
+    for (let i = 0; i < Game.collisionPool.length; i++) {
+      let collA = Game.collisionPool[i];
+      let near = Game.SpatialHash.getNear(collA);
+      for (let j = 0; j < near.length; j++) {
+        let collB = near[j];
+        if (rectIntersect(collA,collB)) {
+            let scripts = collA.component.entity.getComponents(Script);
+            for (let i = 0; i < scripts.length; i++) {
+              scripts[i].collision(collA,collB);
+          }
         }
       }
     }
@@ -305,33 +387,38 @@ var Game = (function () {
     this.frameCounter += 1;
     this.lastTimeMS = Date.now()
     this.graphics.clear()
+    this.clearTempText();
   }.bind(this)
 
   this.loadingScreen = function() {
     if (this.Loader.isLoaded == false) {
       requestAnimationFrame(this.loadingScreen);
-      if (this.loadText === undefined) {
-        console.log("Loading");
-        this.loadText = new PIXI.Text("Loading",{align : "left", fontSize : 26, fontFamily : "Impact", fill : Color.blue, align : "right"})
-        this.stage.addChild(this.loadText);
+      this.deltaTimeMS = Date.now() - this.lastTimeMS;
+      this.totalTimeS += this.deltaTimeMS/1000;
+      if (typeof game_loading === "function") {
+        game_loading();
       }
+      this.frameCounter += 1;
+      this.lastTimeMS = Date.now()
       this.renderer.render(this.stage);
+      this.graphics.clear()
+      this.clearTempText();
     }
     else {
-      this.stage.removeChild(this.loadText);
-      this.loadText.destroy();
-      console.log("Loading Complete");
+      Game.startGame();
     }
   }.bind(this);
-
+  //Public
   this.setWidth = function(_width) {
     this.renderer.width = _width;
+    this.SpatialHash.resize();
   }
   this.getWidth = function() {
     return this.renderer.width;
   }
   this.setHeight = function(_height) {
     this.renderer.height = _height;
+    this.SpatialHash.resize();
   }
   this.getHeight = function() {
     return this.renderer.height;
@@ -356,7 +443,6 @@ var Game = (function () {
     this.loadIn = function() {
       if (this.spritesLoaded == true && this.animationsLoaded == true && this.audioSourceLoaded == true) {
         this.isLoaded = true;
-        Game.startGame();
       }
     }
     //Load AssetMap
@@ -1192,27 +1278,25 @@ function RectCollider(_width,_height,_offsetVector2D) {
     throw new Error();
   }
   //Implementation
-  this.rect = {
-    x : 0,
-    y : 0,
-    width : _width,
-    height : _height,
-    offsetVector2D : _offsetVector2D,
-    top : function() {return this.y;},
-    bot : function() {return this.y+this.height;},
-    left : function() {return this.x;},
-    right : function() {return this.x+this.width;}
-  },
+  this.x = 0;
+  this.y = 0;
+  this.width = _width;
+  this.height = _height;
+  this.offsetVector2D = _offsetVector2D;
+  this.top = function() {return this.y;};
+  this.bot = function() {return this.y+this.height;},
+  this.left = function() {return this.x;},
+  this.right = function() {return this.x+this.width;}
   this.draw = false;
   this.component = new Component(
     function() {
-      Game.collisionPool.push(new Tuple(this.component.entity,this.rect))
+      Game.collisionPool.push(this)
     }.bind(this),
     function() {
-      this.rect.x = this.component.entity.position.vector2D.x + this.rect.offsetVector2D.x;
-      this.rect.y = this.component.entity.position.vector2D.y + this.rect.offsetVector2D.y;
+      this.x = this.component.entity.position.vector2D.x + this.offsetVector2D.x;
+      this.y = this.component.entity.position.vector2D.y + this.offsetVector2D.y;
       if (this.draw) {
-        rect(this.rect.x,this.rect.y,this.rect.width,this.rect.height,Color.green);
+        rect(this.x,this.y,this.width,this.height,Color.green);
       }
     }.bind(this),
     function() {}
@@ -1304,7 +1388,7 @@ function circFill(x,y,r,color) {
 function line(x0,y0,x1,y1,color) {
   Game.graphics.lineStyle(2,color);
   Game.graphics.moveTo(x0,y0);
-  Game.graphics.lineTo(x0+x1,y0+y1);
+  Game.graphics.lineTo(x1,y1);
 }
 function camera(x,y) {
   Game.stage.position.x = -x;
@@ -1314,4 +1398,12 @@ function pset(x,y,color) {
   Game.graphics.lineStyle(2,color);
   Game.graphics.moveTo(x-1,y-1);
   Game.graphics.lineTo(x+1,y+1);
+}
+function txt(_str,_style,_x,_y) {
+  let tmp_text = new PIXI.Text(_str,_style)
+  tmp_text.x = _x;
+  tmp_text.y = _y;
+  Game.temp_text.push(tmp_text);
+  Game.stage.addChild(tmp_text);
+  return tmp_text;
 }
